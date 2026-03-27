@@ -18,6 +18,19 @@ require_command() {
     command -v "$cmd" >/dev/null 2>&1 || die "Required command not found: $cmd"
 }
 
+
+
+STEP="STEP0"
+say "$STEP" "Checking kernel compatibility"
+
+case "$KVER" in
+    6.1[2-9].*|6.[2-9]*)
+        ;;
+    *)
+        die "Unsupported kernel version: $KVER (requires >= 6.12)"
+        ;;
+esac
+
 STEP="STEP1"
 say "$STEP" "Checking required tools"
 
