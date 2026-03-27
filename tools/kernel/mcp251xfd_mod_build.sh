@@ -101,10 +101,10 @@ mcp251xfd-y := \
     mcp251xfd-tx.o
 
 all:
-    $(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+	$(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
 
 clean:
-    $(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+	$(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
 EOF
 
 STEP="STEP5"

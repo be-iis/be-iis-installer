@@ -72,10 +72,10 @@ cat > "$BUILD_DIR/Makefile" <<'EOF'
 obj-m := sc16is7xx.o sc16is7xx_spi.o
 
 all:
-\t$(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+	$(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
 
 clean:
-\t$(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+	$(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
 EOF
 
 STEP="STEP5"
