@@ -51,76 +51,36 @@ esac
 STEP="STEP2"
 say "$STEP" "Preparing build directory"
 
-BUILD_DIR="$HOME/build-mcp251xfd"
+BUILD_DIR="$HOME/build-adin1110"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 
 STEP="STEP3"
 say "$STEP" "Downloading sources"
 
-BASE_URL="https://raw.githubusercontent.com/raspberrypi/linux/rpi-6.12.y/drivers/net/can/spi/mcp251xfd"
+BASE_URL="https://raw.githubusercontent.com/raspberrypi/linux/rpi-6.12.y/drivers/net/ethernet/adi"
 
-for f in \
-    mcp251xfd-core.c \
-    mcp251xfd-chip-fifo.c \
-    mcp251xfd-crc16.c \
-    mcp251xfd-dump.c \
-    mcp251xfd-dump.h \
-    mcp251xfd-ethtool.c \
-    mcp251xfd-ram.c \
-    mcp251xfd-ram.h \
-    mcp251xfd-ring.c \
-    mcp251xfd-regmap.c \
-    mcp251xfd-rx.c \
-    mcp251xfd-tef.c \
-    mcp251xfd-timestamp.c \
-    mcp251xfd-tx.c \
-    mcp251xfd.h
-do
-    wget -nv -O "$BUILD_DIR/$f" "$BASE_URL/$f"
-done
+wget -nv -O "$BUILD_DIR/adin1110.c" "$BASE_URL/adin1110.c"
 
 STEP="STEP4"
 say "$STEP" "Creating Makefile"
 
-cat > "$BUILD_DIR/Makefile" <<'EOF'
-obj-m := mcp251xfd.o
-
-mcp251xfd-y := \
-    mcp251xfd-core.o \
-    mcp251xfd-chip-fifo.o \
-    mcp251xfd-crc16.o \
-    mcp251xfd-ram.o \
-    mcp251xfd-dump.o \
-    mcp251xfd-ethtool.o \
-    mcp251xfd-regmap.o \
-    mcp251xfd-ring.o \
-    mcp251xfd-rx.o \
-    mcp251xfd-tef.o \
-    mcp251xfd-timestamp.o \
-    mcp251xfd-tx.o
-
-all:
-	$(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
-
-clean:
-	$(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
-EOF
+printf 'obj-m := adin1110.o\n\nall:\n\t$(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules\n\nclean:\n\t$(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean\n' > "$BUILD_DIR/Makefile"
 
 STEP="STEP5"
 say "$STEP" "Building module"
 
 make -C "$KDIR" M="$BUILD_DIR" modules
 
-[ -f "$BUILD_DIR/mcp251xfd.ko" ] || die "mcp251xfd.ko was not created"
+[ -f "$BUILD_DIR/adin1110.ko" ] || die "adin1110.ko was not created"
 
 STEP="STEP6"
 say "$STEP" "Installing module"
 
-sudo install -D -m 644 "$BUILD_DIR/mcp251xfd.ko" "/lib/modules/$KVER/updates/mcp251xfd.ko"
+sudo install -D -m 644 "$BUILD_DIR/adin1110.ko" "/lib/modules/$KVER/updates/adin1110.ko"
 sudo depmod "$KVER"
 
 STEP="STEP7"
 say "$STEP" "Done"
 say "$STEP" "Try loading with:"
-say "$STEP" "sudo modprobe mcp251xfd"
+say "$STEP" "sudo modprobe adin1110"
