@@ -51,7 +51,8 @@ esac
 STEP="STEP2"
 say "$STEP" "Preparing build directory"
 
-BUILD_DIR="$HOME/build-sc16is7xx"
+BUILD_DIR="$HOME/build-sc16is752"
+
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 
@@ -60,9 +61,9 @@ say "$STEP" "Downloading sources"
 
 BASE_URL="https://raw.githubusercontent.com/raspberrypi/linux/rpi-6.12.y/drivers/tty/serial"
 
-wget -nv -O "$BUILD_DIR/sc16is7xx.c"     "$BASE_URL/sc16is7xx.c"
-wget -nv -O "$BUILD_DIR/sc16is7xx_spi.c" "$BASE_URL/sc16is7xx_spi.c"
-wget -nv -O "$BUILD_DIR/sc16is7xx.h"     "$BASE_URL/sc16is7xx.h"
+wget -q -O "$BUILD_DIR/sc16is7xx.c"     "$BASE_URL/sc16is7xx.c"
+wget -q -O "$BUILD_DIR/sc16is7xx_spi.c" "$BASE_URL/sc16is7xx_spi.c"
+wget -q -O "$BUILD_DIR/sc16is7xx.h"     "$BASE_URL/sc16is7xx.h"
 
 STEP="STEP4"
 say "$STEP" "Creating Makefile"
@@ -88,7 +89,7 @@ make -C "$KDIR" M="$BUILD_DIR" modules
 STEP="STEP6"
 say "$STEP" "Installing modules"
 
-sudo install -D -m 644 "$BUILD_DIR/sc16is7xx.ko"     "/lib/modules/$KVER/updates/sc16is7xx.ko"
+sudo install -D -m 644 "$BUILD_DIR/sc16is7xx.ko" "/lib/modules/$KVER/updates/sc16is7xx.ko"
 sudo install -D -m 644 "$BUILD_DIR/sc16is7xx_spi.ko" "/lib/modules/$KVER/updates/sc16is7xx_spi.ko"
 
 sudo depmod "$KVER"
@@ -96,4 +97,5 @@ sudo depmod "$KVER"
 STEP="STEP7"
 say "$STEP" "Done"
 say "$STEP" "Try loading with:"
+say "$STEP" "sudo modprobe sc16is7xx"
 say "$STEP" "sudo modprobe sc16is7xx_spi"
