@@ -8,7 +8,41 @@ for eep in \
     /sys/bus/i2c/devices/0-0076/eeprom
 do
     if [ -e "$eep" ]; then
-        overlay="$(eepdump "$eep" | awk -F'"' '/^dt_blob /{print $2}')"
-        [ -n "$overlay" ] && dtoverlay "$overlay"
+        echo "Checking EEPROM: $eep"
+
+        overlay="$(eepdump "$eep" 2>/dev/null | awk -F'"' '/^dt_blob /{print $2}')"
+
+        if [ -n "$overlay" ]; then
+            echo "  -> Applying overlay: $overlay"
+            dtoverlay "$overlay"
+        else
+            echo "  -> No dt_blob found"
+        fi
     fi
 done
+
+
+# =========================
+# Load required kernel modules
+# =========================
+
+echo "Loading BE-IIS kernel modules..."
+
+modules=(
+    lan8650      # T1S
+    adin1110     # T1L
+    ks8851       # Ethernet
+    mcp251xfd    # CAN FD
+    sc16is7xx    # UART
+)
+
+for mod in "${modules[@]}"; do
+    if modinfo "$mod" >/dev/null 2>&1; then
+        echo "  -> modprobe $mod"
+        modprobe "$mod" || true
+    else
+        echo "  -> module not found: $mod"
+    fi
+done
+
+echo "Done."

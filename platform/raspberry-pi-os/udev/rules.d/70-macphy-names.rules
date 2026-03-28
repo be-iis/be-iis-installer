@@ -1,0 +1,37 @@
+# =========================
+# BE-IIS Network Interfaces
+# =========================
+
+# --- 10BASE-T1S (LAN865x) ---
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="lan8650", KERNELS=="spi0.0", NAME="beiis-t1s0"
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="lan8650", KERNELS=="spi0.1", NAME="beiis-t1s1"
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="lan8650", KERNELS=="spi0.2", NAME="beiis-t1s2"
+
+# --- Ethernet (KSZ8851) ---
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="ks8851", KERNELS=="spi0.0", NAME="beiis-lan0"
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="ks8851", KERNELS=="spi0.1", NAME="beiis-lan1"
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="ks8851", KERNELS=="spi0.2", NAME="beiis-lan2"
+
+# --- 10BASE-T1L (ADIN1110) ---
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="adin1110", KERNELS=="spi0.0", NAME="beiis-t1l0"
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="adin1110", KERNELS=="spi0.1", NAME="beiis-t1l1"
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="adin1110", KERNELS=="spi0.2", NAME="beiis-t1l2"
+
+# --- CAN FD (MCP2518FD) ---
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="mcp251xfd", KERNELS=="spi0.0", NAME="beiis-can0"
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="mcp251xfd", KERNELS=="spi0.1", NAME="beiis-can1"
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="mcp251xfd", KERNELS=="spi0.2", NAME="beiis-can2"
+
+# SC16IS752 on I2C
+
+# 0x4D
+ACTION=="add", SUBSYSTEM=="tty", DRIVERS=="sc16is7xx", KERNEL=="ttySC0", KERNELS=="1-004D", SYMLINK+="beiis-uart0a"
+ACTION=="add", SUBSYSTEM=="tty", DRIVERS=="sc16is7xx", KERNEL=="ttySC1", KERNELS=="1-004D", SYMLINK+="beiis-uart0b"
+
+# 0x49
+ACTION=="add", SUBSYSTEM=="tty", DRIVERS=="sc16is7xx", KERNEL=="ttySC2", KERNELS=="1-0049", SYMLINK+="beiis-uart1a"
+ACTION=="add", SUBSYSTEM=="tty", DRIVERS=="sc16is7xx", KERNEL=="ttySC3", KERNELS=="1-0049", SYMLINK+="beiis-uart1b"
+
+# 0x48
+ACTION=="add", SUBSYSTEM=="tty", DRIVERS=="sc16is7xx", KERNEL=="ttySC4", KERNELS=="1-0048", SYMLINK+="beiis-uart2a"
+ACTION=="add", SUBSYSTEM=="tty", DRIVERS=="sc16is7xx", KERNEL=="ttySC5", KERNELS=="1-0048", SYMLINK+="beiis-uart2b"
