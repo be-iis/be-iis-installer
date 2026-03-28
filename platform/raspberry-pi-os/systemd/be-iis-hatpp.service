@@ -1,0 +1,14 @@
+
+[Unit]
+Description=Apply HAT overlays from EEPROM
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/apply-hat-overlays.sh
+TimeoutStartSec=30
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

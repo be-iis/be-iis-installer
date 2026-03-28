@@ -1,0 +1,218 @@
+// Raspberry Pi DT overlay: Analog Devices ADIN1110 on SPI0 (CE0)
+// IRQ: BCM GPIO6 (active low / level low)
+// SPI must be enabled in config.txt:
+//     dtparam=spi=on
+//
+// Supported Raspberry Pi models (SPI0-based):
+//   - Raspberry Pi Zero / Zero W / Zero 2 W
+//   - Raspberry Pi 1 (A/B/B+)
+//   - Raspberry Pi 2 (v1.1 / v1.2)
+//   - Raspberry Pi 3 (3A+, 3B, 3B+)
+//   - Raspberry Pi 4 (4B, 400, CM4)
+//   - Raspberry Pi 5
+//
+// Notes:
+//   - Uses SPI0 + CE0
+//   - Uses BCM GPIO numbering
+//   - Works across bcm2835 / bcm2711 / bcm2712
+//   - ADIN1110 requires an external PHY subnode
+//   - INT_N is usually active low, therefore LEVEL_LOW is used here
+
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	/*
+	 * RPi firmware doesn’t really *use* this for overlays, but keeping it sane helps.
+	 * Works across Pi Zero / 2 / 3 / 4 / 5
+	 */
+	compatible = "brcm,bcm2835", "brcm,bcm2711", "brcm,bcm2712";
+
+	fragment@0 {
+		target = <&spi0>;
+		__overlay__ {
+			/* avoid dtc warnings */
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			/* Extend SPI0 to 3 chip-selects */
+			num-cs = <3>;
+			cs-gpios =
+				<&gpio 8  GPIO_ACTIVE_LOW>,   /* CE0 */
+				<&gpio 7  GPIO_ACTIVE_LOW>,   /* CE1 */
+				<&gpio 16 GPIO_ACTIVE_LOW>;   /* CS2 */
+
+			/*
+			 * ADIN1110 on SPI0, chip select 0 (CE0)
+			 * Interrupt on GPIO6, active low / level low
+			 */
+			eth1: ethernet@0 {
+				compatible = "adi,adin1110";
+				reg = <0>; /* CE0 */
+
+				/* 10 Mbps over 10BASE-T1L usually needs high SPI clock */
+				/* start conservative if needed, increase later */
+				spi-max-frequency = <1500000>;
+
+				/* optional SPI CRC checking */
+				adi,spi-crc;
+
+				interrupt-parent = <&gpio>;
+				interrupts = <6 IRQ_TYPE_LEVEL_LOW>;
+
+				/* optional fixed MAC address */
+				mac-address = [ 02 00 00 00 00 01 ];
+
+				#address-cells = <1>;
+				#size-cells = <0>;
+				status = "okay";
+
+				phy@0 {
+					compatible = "ethernet-phy-id0283.bc91";
+					reg = <0>;
+
+					/* 10BASE-T1L amplitude selection */
+					phy-10base-t1l-2.4vpp = <1>;
+				};
+
+			};
+		};
+	};
+
+
+	/* disable spidev on CE0 so the kernel can bind the LAN865x driver */
+	fragment@1 {
+		target = <&spidev0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+	/* GPIO6 as input, no pull (IRQ pin) */
+	fragment@2 {
+		target = <&gpio>;
+		__overlay__ {
+			eth1_int_pins: eth1_int_pins {
+				brcm,pins = <6>;
+				brcm,function = <0>; /* input */
+				brcm,pull = <0>;     /* none */
+			};
+		};
+	};
+	
+	/* disable spidev on CE1 so the kernel can bind the LAN865x driver */
+	fragment@3 {
+		target = <&spidev1>;
+		__overlay__ {
+		status = "disabled";
+		};
+	};
+	
+	/* reserve GP5 */
+	fragment@5 {
+		target = <&gpio>;
+		__overlay__ {
+			gpio5_reserved: gpio5_reserved {
+				gpio-hog;
+				gpios = <5 GPIO_ACTIVE_HIGH>;
+				input;
+			};
+		};
+	};
+	/* reserve GP12 */
+	fragment@6 {
+		target = <&gpio>;
+		__overlay__ {
+			gpio12_reserved: gpio12_reserved {
+				gpio-hog;
+				gpios = <12 GPIO_ACTIVE_HIGH>;
+				input;
+			};
+		};
+	};
+	/* reserve GP17 */
+	fragment@7 {
+		target = <&gpio>;
+		__overlay__ {
+			gpio17_reserved: gpio17_reserved {
+				gpio-hog;
+				gpios = <17 GPIO_ACTIVE_HIGH>;
+				input;
+			};
+		};
+	};
+	/* reserve GP27 */
+	fragment@8 {
+		target = <&gpio>;
+		__overlay__ {
+			gpio27_reserved: gpio27_reserved {
+				gpio-hog;
+				gpios = <27 GPIO_ACTIVE_HIGH>;
+				input;
+			};
+		};
+	};
+	
+	
+	fragment@9 {
+	target = <&i2c0>;
+	__overlay__ {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		ee50: eeprom@50 {
+			compatible = "atmel,24c32";
+			reg = <0x50>;
+			status = "okay";
+		};
+		
+		ee60: eeprom@60 {
+			compatible = "atmel,24c32";
+			reg = <0x60>;
+			status = "okay";
+		};
+
+		ee70: eeprom@70 {
+			compatible = "atmel,24c32";
+			reg = <0x70>;
+			status = "okay";
+		};
+		
+		ee80: eeprom@80 {
+			compatible = "atmel,24c32";
+			reg = <0x70>;
+			status = "okay";
+		};
+		
+		ee90: eeprom@90 {
+			compatible = "atmel,24c32";
+			reg = <0x70>;
+			status = "okay";
+		};
+	};
+};
+
+fragment@10 {
+	target = <&gpio>;
+	__overlay__ {
+		ksz8851_reset_high: ksz8851_reset_high {
+			gpio-hog;
+			gpios = <13 GPIO_ACTIVE_HIGH>;
+			output-high;
+			line-name = "ksz8851-reset";
+		};
+	};
+};
+
+
+
+	__overrides__ {
+
+		speed    = <&eth1>, "spi-max-frequency:0";
+	};
+};
+

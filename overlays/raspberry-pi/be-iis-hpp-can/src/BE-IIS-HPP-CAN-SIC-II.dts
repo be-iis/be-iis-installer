@@ -1,0 +1,74 @@
+// Raspberry Pi DT overlay: Microchip LAN8651/LAN8650 on SPI0 (CE1)
+// IRQ: BCM GPIO5 (falling edge)
+// SPI must be enabled in config.txt:
+//     dtparam=spi=on
+//
+// Supported Raspberry Pi models (SPI0-based):
+//   - Raspberry Pi Zero / Zero W / Zero 2 W
+//   - Raspberry Pi 1 (A/B/B+)
+//   - Raspberry Pi 2 (v1.1 / v1.2)
+//   - Raspberry Pi 3 (3A+, 3B, 3B+)
+//   - Raspberry Pi 4 (4B, 400, CM4)
+//   - Raspberry Pi 5
+//
+// Notes:
+//   - Uses SPI0 + CE1
+//   - Uses BCM GPIO numbering
+//   - Works across bcm2835 / bcm2711 / bcm2712
+
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	/*
+	 * RPi firmware doesn’t really *use* this for overlays, but keeping it sane helps.
+	 * Works across Pi Zero / 2 / 3 / 4 / 5
+	 */
+	compatible = "brcm,bcm2835", "brcm,bcm2711", "brcm,bcm2712";
+
+	fragment@0 {
+		target = <&spi0>;
+		__overlay__ {
+			/* avoid dtc warnings */
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			
+			can1: can@1 {
+				compatible = "microchip,mcp2518fd";
+				reg = <1>; /* CE1 */
+
+				interrupt-parent = <&gpio>;
+				interrupts = <5 IRQ_TYPE_LEVEL_LOW>;
+
+
+				spi-max-frequency = <15000000>;
+				enable-gpios = <&gpio 0 GPIO_ACTIVE_HIGH>;
+				clocks = <&mcp2518fd_CLK_CAN_II>;
+				status = "okay";
+			};
+		};
+	};
+	
+	fragment@22 {
+	target-path = "/clocks";
+	__overlay__ {
+		mcp2518fd_CLK_CAN_II: mcp2518fd_CLK_CAN_II {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <20000000>;
+		};
+	};
+};
+
+	__overrides__ {
+		int_pin = <&can1>, "interrupts:0";
+		speed   = <&can1>, "spi-max-frequency:0";
+		cs      = <&can1>, "reg:0";
+		osc     = <&mcp2518fd_CLK_CAN_II>, "clock-frequency:0";
+	};
+};

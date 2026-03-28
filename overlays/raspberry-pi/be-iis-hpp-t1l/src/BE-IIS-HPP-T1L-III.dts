@@ -1,0 +1,67 @@
+// Raspberry Pi DT overlay: Microchip LAN8651/LAN8650 on SPI0 (CE2)
+// IRQ: BCM GPIO5 (falling edge)
+// SPI must be enabled in config.txt:
+//     dtparam=spi=on
+//
+// Supported Raspberry Pi models (SPI0-based):
+//   - Raspberry Pi Zero / Zero W / Zero 2 W
+//   - Raspberry Pi 1 (A/B/B+)
+//   - Raspberry Pi 2 (v1.1 / v1.2)
+//   - Raspberry Pi 3 (3A+, 3B, 3B+)
+//   - Raspberry Pi 4 (4B, 400, CM4)
+//   - Raspberry Pi 5
+//
+// Notes:
+//   - Uses SPI0 + CE1
+//   - Uses BCM GPIO numbering
+//   - Works across bcm2835 / bcm2711 / bcm2712
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/ {
+	compatible = "brcm,bcm2835", "brcm,bcm2711", "brcm,bcm2712";
+
+	fragment@0 {
+		target = <&spi0>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			eth3: ethernet@2 {
+				compatible = "adi,adin1110";
+				reg = <2>;
+
+				interrupt-parent = <&gpio>;
+				interrupts = <12 IRQ_TYPE_EDGE_FALLING>;
+		
+				/* optional: set a fixed MAC (better: let it be set by userspace) */
+				mac-address = [ 02 00 00 00 00 03 ];
+				
+				/* optional SPI CRC checking */
+				adi,spi-crc;
+
+				spi-max-frequency = <15000000>;
+				
+				#address-cells = <1>;
+				#size-cells = <0>;
+				status = "okay";
+				phy@0 {
+					compatible = "ethernet-phy-id0283.bc91";
+					reg = <0>;
+
+					/* 10BASE-T1L amplitude selection */
+					phy-10base-t1l-2.4vpp = <1>;
+				};
+			};
+		};
+	};
+
+	__overrides__ {
+		int_pin = <&eth3>, "interrupts:0";
+		speed   = <&eth3>, "spi-max-frequency:0";
+	};
+};

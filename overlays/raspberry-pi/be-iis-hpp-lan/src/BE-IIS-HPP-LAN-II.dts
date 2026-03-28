@@ -1,0 +1,36 @@
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	compatible = "brcm,bcm2835", "brcm,bcm2711", "brcm,bcm2712";
+
+	fragment@0 {
+		target = <&spi0>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			ksz8851_ii: ethernet@1 {
+				compatible = "micrel,ks8851";
+				reg = <1>;
+				/*
+				pinctrl-names = "default";
+				pinctrl-0 = <&ksz8851_ii_int_pins>;
+				*/
+				interrupt-parent = <&gpio>;
+				interrupts = <5 IRQ_TYPE_EDGE_FALLING>;
+
+				spi-max-frequency = <15000000>;
+				status = "okay";
+			};
+		};
+	};
+	
+	__overrides__ {
+		speed   = <&ksz8851_ii>, "spi-max-frequency:0";
+	};
+};
+

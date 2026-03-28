@@ -1,0 +1,44 @@
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/ {
+	compatible = "brcm,bcm2835", "brcm,bcm2711", "brcm,bcm2712";
+
+	fragment@1 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			uart3: sc16is752@48 {
+				compatible = "nxp,sc16is752";
+				reg = <0x48>;
+
+				clocks = <&sc16is752_CLK_MODBUS_III>;
+
+				interrupt-parent = <&gpio>;
+				interrupts = <27 IRQ_TYPE_LEVEL_LOW>;
+
+				status = "okay";
+			};
+		};
+	};
+	
+	fragment@30 {
+		target-path = "/clocks";
+		__overlay__ {
+			sc16is752_CLK_MODBUS_III: sc16is752_CLK_MODBUS_III {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <3027000>;
+			};
+		};
+	};
+
+	__overrides__ {
+		int_pin = <&uart3>, "interrupts:0";
+	};
+};

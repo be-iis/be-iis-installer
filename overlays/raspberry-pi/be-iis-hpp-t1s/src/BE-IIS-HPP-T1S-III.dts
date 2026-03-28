@@ -1,0 +1,33 @@
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/ {
+	compatible = "brcm,bcm2835", "brcm,bcm2711", "brcm,bcm2712";
+
+	fragment@0 {
+		target = <&spi0>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			eth3: ethernet@2 {
+				compatible = "microchip,lan8651", "microchip,lan8650";
+				reg = <2>;
+
+				interrupt-parent = <&gpio>;
+				interrupts = <12 IRQ_TYPE_EDGE_FALLING>;
+
+				spi-max-frequency = <15000000>;
+				status = "okay";
+			};
+		};
+	};
+
+	__overrides__ {
+		int_pin = <&eth3>, "interrupts:0";
+		speed   = <&eth3>, "spi-max-frequency:0";
+	};
+};

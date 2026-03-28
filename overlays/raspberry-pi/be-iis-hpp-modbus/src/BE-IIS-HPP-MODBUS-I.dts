@@ -1,0 +1,190 @@
+// Raspberry Pi DT overlay: Analog Devices ADIN1110 on SPI0 (CE0)
+// IRQ: BCM GPIO6 (active low / level low)
+// SPI must be enabled in config.txt:
+//     dtparam=spi=on
+//
+// Supported Raspberry Pi models (SPI0-based):
+//   - Raspberry Pi Zero / Zero W / Zero 2 W
+//   - Raspberry Pi 1 (A/B/B+)
+//   - Raspberry Pi 2 (v1.1 / v1.2)
+//   - Raspberry Pi 3 (3A+, 3B, 3B+)
+//   - Raspberry Pi 4 (4B, 400, CM4)
+//   - Raspberry Pi 5
+//
+// Notes:
+//   - Uses SPI0 + CE0
+//   - Uses BCM GPIO numbering
+//   - Works across bcm2835 / bcm2711 / bcm2712
+//   - ADIN1110 requires an external PHY subnode
+//   - INT_N is usually active low, therefore LEVEL_LOW is used here
+
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/gpio/gpio.h>
+
+
+/ {
+	compatible = "brcm,bcm2835", "brcm,bcm2711", "brcm,bcm2712";
+
+	fragment@0 {
+		target = <&i2c1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			uart3: sc16is752@49 {
+				compatible = "nxp,sc16is752";
+				reg = <0x4D>;
+
+				clocks = <&sc16is752_CLK_MODBUS_I>;
+
+				interrupt-parent = <&gpio>;
+				interrupts = <6 IRQ_TYPE_LEVEL_LOW>;
+
+				status = "okay";
+			};
+		};
+	};
+
+	/* disable spidev on CE0 so the kernel can bind the LAN865x driver */
+	fragment@1 {
+		target = <&spidev0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+	/* GPIO6 as input, no pull (IRQ pin) */
+	fragment@2 {
+		target = <&gpio>;
+		__overlay__ {
+			eth1_int_pins: eth1_int_pins {
+				brcm,pins = <6>;
+				brcm,function = <0>; /* input */
+				brcm,pull = <0>;     /* none */
+			};
+		};
+	};
+	
+	/* disable spidev on CE1 so the kernel can bind the LAN865x driver */
+	fragment@3 {
+		target = <&spidev1>;
+		__overlay__ {
+		status = "disabled";
+		};
+	};
+	
+	/* reserve GP5 */
+	fragment@5 {
+		target = <&gpio>;
+		__overlay__ {
+			gpio5_reserved: gpio5_reserved {
+				gpio-hog;
+				gpios = <5 GPIO_ACTIVE_HIGH>;
+				input;
+			};
+		};
+	};
+	/* reserve GP12 */
+	fragment@6 {
+		target = <&gpio>;
+		__overlay__ {
+			gpio12_reserved: gpio12_reserved {
+				gpio-hog;
+				gpios = <12 GPIO_ACTIVE_HIGH>;
+				input;
+			};
+		};
+	};
+	/* reserve GP17 */
+	fragment@7 {
+		target = <&gpio>;
+		__overlay__ {
+			gpio17_reserved: gpio17_reserved {
+				gpio-hog;
+				gpios = <17 GPIO_ACTIVE_HIGH>;
+				input;
+			};
+		};
+	};
+	/* reserve GP27 */
+	fragment@8 {
+		target = <&gpio>;
+		__overlay__ {
+			gpio27_reserved: gpio27_reserved {
+				gpio-hog;
+				gpios = <27 GPIO_ACTIVE_HIGH>;
+				input;
+			};
+		};
+	};
+	
+	
+	fragment@9 {
+		target = <&i2c0>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			ee50: eeprom@50 {
+				compatible = "atmel,24c32";
+				reg = <0x50>;
+				status = "okay";
+			};
+			
+			ee60: eeprom@60 {
+				compatible = "atmel,24c32";
+				reg = <0x60>;
+				status = "okay";
+			};
+
+			ee70: eeprom@70 {
+				compatible = "atmel,24c32";
+				reg = <0x70>;
+				status = "okay";
+			};
+			
+			ee74: eeprom@74 {
+				compatible = "atmel,24c32";
+				reg = <0x74>;
+				status = "okay";
+			};
+			
+			ee76: eeprom@76 {
+				compatible = "atmel,24c32";
+				reg = <0x76>;
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@10 {
+		target = <&gpio>;
+		__overlay__ {
+			ksz8851_reset_high: ksz8851_reset_high {
+				gpio-hog;
+				gpios = <13 GPIO_ACTIVE_HIGH>;
+				output-high;
+				line-name = "ksz8851-reset";
+			};
+		};
+	};
+
+	fragment@30 {
+	target-path = "/clocks";
+	__overlay__ {
+		sc16is752_CLK_MODBUS_I: sc16is752_CLK_MODBUS_I{
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <3027000>;
+			};
+		};
+	};
+	
+	__overrides__ {
+		int_pin = <&uart3>, "interrupts:0";
+	};
+};

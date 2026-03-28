@@ -2,7 +2,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SELF="$(basename "$0")"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+KERNEL_TOOLS_DIR="$REPO_ROOT/tools/kernel"
 
 log() {
     printf '[INFO] %s\n' "$*"
@@ -12,21 +13,28 @@ warn() {
     printf '[WARN] %s\n' "$*" >&2
 }
 
+die() {
+    printf '[ERROR] %s\n' "$*" >&2
+    exit 1
+}
+
+[[ -d "$KERNEL_TOOLS_DIR" ]] || die "Kernel tools directory not found: $KERNEL_TOOLS_DIR"
+
+shopt -s nullglob
+
+scripts=("$KERNEL_TOOLS_DIR"/*.sh)
+
+if [[ ${#scripts[@]} -eq 0 ]]; then
+    die "No shell scripts found in: $KERNEL_TOOLS_DIR"
+fi
+
 count_total=0
 count_ok=0
 count_fail=0
 
-shopt -s nullglob
-
-for script in "$SCRIPT_DIR"/*.sh; do
-    name="$(basename "$script")"
-
-    # Skip itself
-    if [[ "$name" == "$SELF" ]]; then
-        continue
-    fi
-
+for script in "${scripts[@]}"; do
     ((count_total+=1))
+    name="$(basename "$script")"
 
     log "Running $name"
 
