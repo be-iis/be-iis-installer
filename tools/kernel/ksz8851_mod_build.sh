@@ -1,6 +1,8 @@
-#!/bin/sh
+#!/usr/bin/env bash
+set -euo pipefail
 
-set -e
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 die() {
     echo "Error: $1" >&2
@@ -18,7 +20,7 @@ require_command() {
     command -v "$cmd" >/dev/null 2>&1 || die "Required command not found: $cmd"
 }
 
-STEP="STEP1"
+STEP="STEP0"
 say "$STEP" "Checking required tools"
 
 require_command uname
@@ -33,6 +35,17 @@ KDIR="/lib/modules/$KVER/build"
 say "$STEP" "Running kernel: $KVER"
 say "$STEP" "Kernel build directory: $KDIR"
 
+STEP="STEP1"
+say "$STEP" "Checking kernel compatibility"
+
+case "$KVER" in
+    6.1[2-9].*|6.[2-9]*)
+        ;;
+    *)
+        die "Unsupported kernel version: $KVER (requires >= 6.12)"
+        ;;
+esac
+
 [ -d "$KDIR" ] || die "Kernel build directory not found: $KDIR"
 [ -f "$KDIR/include/generated/autoconf.h" ] || die "Missing autoconf.h in $KDIR"
 [ -f "$KDIR/Makefile" ] || die "Missing kernel Makefile in $KDIR"
@@ -40,31 +53,25 @@ say "$STEP" "Kernel build directory: $KDIR"
 STEP="STEP2"
 say "$STEP" "Preparing build directory"
 
-BUILD_DIR="$HOME/build-lan865x"
-INCLUDE_DIR="$BUILD_DIR/include/linux"
-
+BUILD_DIR="${REPO_ROOT}/build/ksz8851"
 rm -rf "$BUILD_DIR"
-mkdir -p "$INCLUDE_DIR"
+mkdir -p "$BUILD_DIR"
 
 STEP="STEP3"
 say "$STEP" "Downloading sources"
 
-wget -q -O "$BUILD_DIR/lan865x.c" \
-"https://raw.githubusercontent.com/raspberrypi/linux/refs/heads/rpi-6.13.y/drivers/net/ethernet/microchip/lan865x/lan865x.c"
+BASE_URL="https://raw.githubusercontent.com/raspberrypi/linux/rpi-6.12.y/drivers/net/ethernet/micrel"
 
-wget -q -O "$BUILD_DIR/oa_tc6.c" \
-"https://raw.githubusercontent.com/raspberrypi/linux/refs/heads/rpi-6.13.y/drivers/net/ethernet/oa_tc6.c"
-
-wget -q -O "$INCLUDE_DIR/oa_tc6.h" \
-"https://raw.githubusercontent.com/raspberrypi/linux/refs/heads/rpi-6.13.y/include/linux/oa_tc6.h"
+wget -q -O "$BUILD_DIR/ks8851_spi.c"    "$BASE_URL/ks8851_spi.c"
+wget -q -O "$BUILD_DIR/ks8851_common.c" "$BASE_URL/ks8851_common.c"
+wget -q -O "$BUILD_DIR/ks8851.h"        "$BASE_URL/ks8851.h"
 
 STEP="STEP4"
 say "$STEP" "Creating Makefile"
 
 cat > "$BUILD_DIR/Makefile" <<'EOF'
-obj-m := oa_tc6.o lan865x.o
-
-ccflags-y += -I$(PWD)/include
+obj-m := ks8851.o
+ks8851-y := ks8851_spi.o ks8851_common.o
 
 all:
 	$(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
@@ -74,23 +81,20 @@ clean:
 EOF
 
 STEP="STEP5"
-say "$STEP" "Building modules"
+say "$STEP" "Building module"
 
 make -C "$KDIR" M="$BUILD_DIR" modules
 
-[ -f "$BUILD_DIR/oa_tc6.ko" ] || die "oa_tc6.ko was not created"
-[ -f "$BUILD_DIR/lan865x.ko" ] || die "lan865x.ko was not created"
+[ -f "$BUILD_DIR/ks8851.ko" ] || die "ks8851.ko was not created"
 
 STEP="STEP6"
-say "$STEP" "Installing modules"
+say "$STEP" "Installing module"
 
-sudo install -D -m 644 "$BUILD_DIR/oa_tc6.ko" "/lib/modules/$KVER/updates/oa_tc6.ko"
-sudo install -D -m 644 "$BUILD_DIR/lan865x.ko" "/lib/modules/$KVER/updates/lan865x.ko"
+sudo install -D -m 644 "$BUILD_DIR/ks8851.ko" "/lib/modules/$KVER/updates/ks8851.ko"
 
 sudo depmod "$KVER"
 
 STEP="STEP7"
 say "$STEP" "Done"
 say "$STEP" "Try loading with:"
-say "$STEP" "sudo modprobe oa_tc6"
-say "$STEP" "sudo modprobe lan865x"
+say "$STEP" "sudo modprobe ks8851"

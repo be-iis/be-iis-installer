@@ -106,6 +106,10 @@ else
         curl \
         bc \
         kmod \
+        automake \
+        autoconf \
+        libtool \
+        pkg-config \
         "$HEADER_PKG"
 
     if ! build_tree_ready "$KDIR"; then

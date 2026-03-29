@@ -49,3 +49,18 @@ log "Failed        : $count_fail"
 if [[ $count_fail -ne 0 ]]; then
     exit 1
 fi
+
+echo
+log "--------------------------------------------------"
+log "Installation complete."
+log "The following changes will become active after reboot:"
+log "  - systemd service"
+log "  - udev rules"
+log "  - module autoload / runtime setup"
+log "--------------------------------------------------"
+echo
+
+read -rp "Press ENTER to reboot now or CTRL+C to cancel..."
+
+log "Rebooting..."
+sudo reboot

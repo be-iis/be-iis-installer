@@ -1,6 +1,8 @@
-#!/bin/sh
+#!/usr/bin/env bash
+set -euo pipefail
 
-set -e
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 die() {
     echo "Error: $1" >&2
@@ -51,16 +53,24 @@ esac
 STEP="STEP2"
 say "$STEP" "Preparing build directory"
 
-BUILD_DIR="$HOME/build-adin1110"
+BUILD_DIR="${REPO_ROOT}/build/adin1110"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 
 STEP="STEP3"
-say "$STEP" "Downloading sources"
+say "$STEP" "Downloading sources"cd
 
 BASE_URL="https://raw.githubusercontent.com/raspberrypi/linux/rpi-6.12.y/drivers/net/ethernet/adi"
 
 wget -nv -O "$BUILD_DIR/adin1110.c" "$BASE_URL/adin1110.c"
+
+
+STEP="STEP3b"
+say "$STEP" "Applying compatibility patch for kernels without CONFIG_NET_SWITCHDEV"
+sed -i '/offload_fwd_mark = port_priv->priv->forwarding;/c\
+#ifdef CONFIG_NET_SWITCHDEV\
+\t\t\trxb->offload_fwd_mark = port_priv->priv->forwarding;\
+#endif' "$BUILD_DIR/adin1110.c"
 
 STEP="STEP4"
 say "$STEP" "Creating Makefile"

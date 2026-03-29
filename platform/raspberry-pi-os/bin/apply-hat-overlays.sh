@@ -29,7 +29,9 @@ done
 echo "Loading BE-IIS kernel modules..."
 
 modules=(
-    lan8650      # T1S
+    lan865x      # T1S
+    microchip_t1s
+    oa_tc6
     adin1110     # T1L
     ks8851       # Ethernet
     mcp251xfd    # CAN FD

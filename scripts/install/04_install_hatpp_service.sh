@@ -50,24 +50,20 @@ install -m 644 "$SERVICE_SRC" "$SERVICE_DST"
 # -----------------------------------------------------------------------------
 
 log "Reloading systemd"
-systemctl daemon-reexec
 systemctl daemon-reload
 
 # -----------------------------------------------------------------------------
-# Enable + start service
+# Enable service for next boot only
 # -----------------------------------------------------------------------------
 
-log "Enabling service"
+log "Enabling service for next boot"
 systemctl enable be-iis-hatpp.service
 
-log "Starting service"
-systemctl restart be-iis-hatpp.service
-
-# -----------------------------------------------------------------------------
-# Status
-# -----------------------------------------------------------------------------
-
-log "Service status:"
-systemctl status be-iis-hatpp.service --no-pager
+log "Service installed."
+log "It will start automatically after the next reboot."
+log "To start it manually later, run:"
+log "  sudo systemctl start be-iis-hatpp.service"
+log "To check status after reboot, run:"
+log "  systemctl status be-iis-hatpp.service --no-pager"
 
 log "Done."

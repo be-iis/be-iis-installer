@@ -1,6 +1,8 @@
-#!/bin/sh
+#!/usr/bin/env bash
+set -euo pipefail
 
-set -e
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 die() {
     echo "Error: $1" >&2
@@ -51,7 +53,7 @@ esac
 STEP="STEP2"
 say "$STEP" "Preparing build directory"
 
-BUILD_DIR="$HOME/build-sc16is752"
+BUILD_DIR="${REPO_ROOT}/build/sc16is752"
 
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
