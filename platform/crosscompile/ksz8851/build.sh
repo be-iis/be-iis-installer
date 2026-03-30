@@ -81,6 +81,8 @@ MODULE_SRC_DIR="$WORK_ROOT/src/module"
 MODULE_BUILD_DIR="$WORK_ROOT/build/module"
 OUT_DIR="$WORK_ROOT/out"
 LOG_DIR="$WORK_ROOT/logs"
+ARTEFACT_DIR="$REPO_ROOT/artefacts"
+MODULE_NAME="ks8851"
 
 die() {
     echo "Error: $*" >&2
@@ -152,6 +154,9 @@ EOF
 make -C "$LINUX_SRC_DIR" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" $KERNEL_DEFCONFIG
 make -C "$LINUX_SRC_DIR" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" modules_prepare
 make -C "$LINUX_SRC_DIR" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" -j"$JOBS" modules
+KVER="$(make -s -C "$LINUX_SRC_DIR" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" kernelrelease)"
+
+TARGET_DIR="$ARTEFACT_DIR/$ARCH/$KVER"
 
 #--------------------------------------------------------------#
 #			Step 7					#
@@ -171,7 +176,19 @@ make -C "$LINUX_SRC_DIR" \
 #			Step 8					#
 #			postprocess				#
 #--------------------------------------------------------------#
-[[ -f "$MODULE_BUILD_DIR/ks8851.ko" ]] || die "ks8851.ko was not created"
+[[ -f "$MODULE_BUILD_DIR/${MODULE_NAME}.ko" ]] || die "${MODULE_NAME}.ko was not created"
+
+
+
+
+mkdir -p "$TARGET_DIR"
+
+cp "$MODULE_BUILD_DIR/${MODULE_NAME}.ko" \
+   "$TARGET_DIR/${MODULE_NAME}.ko"
+   
+   
+   
+
 
 cp "$MODULE_BUILD_DIR/ks8851.ko" \
    "$OUT_DIR/ks8851-${ARCH}-${KERNEL_BRANCH}.ko"
