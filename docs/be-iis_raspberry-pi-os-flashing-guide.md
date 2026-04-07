@@ -189,12 +189,24 @@ ssh <username>@raspberrypi.local
 
 ## Initial setup on the Raspberry Pi
 
-### 12. Update the system
+### 12. (Optional) Update the system ⚠️
 
 ```bash
 sudo apt update
 sudo apt upgrade -y
 ```
+
+⚠️ Important: Reboot required after upgrade
+If a kernel update was installed, you must reboot before continuing:
+```bash
+sudo reboot
+```
+📌 Note
+Skipping the reboot may lead to:
+
+Kernel module build failures
+Missing or mismatched headers
+Installer errors in BE-IIS scripts
 
 ### 13. Install Git
 
@@ -209,7 +221,7 @@ sudo apt install -y git
 ### 14. Clone the repository
 
 ```bash
-git clone https://github.com/<your-org>/be-iis-installer.git
+git clone https://github.com/be-iis/be-iis-installer.git
 ```
 
 ### 15. Run the installer

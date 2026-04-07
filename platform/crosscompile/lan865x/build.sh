@@ -4,7 +4,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
-
 # Usage:
 #   PI_VARIANT=pi5_64 ./build.sh
 #   PI_VARIANT=pi5_32 ./build.sh
@@ -29,7 +28,6 @@ pi5_64|pi4_64|pi400_64|cm4_64|pi3_64|zero2w_64)
     CROSS_COMPILE="aarch64-linux-gnu-"
     KERNEL_DEFCONFIG="bcm2711_defconfig"
     KERNEL_BRANCH="${KERNEL_BRANCH:-rpi-6.12.y}"
-
     echo "Selected: 64-bit build (arm64)"
     ;;
 
@@ -41,7 +39,6 @@ pi5_32|pi4_32|pi3_32|zero2w_32|zero_32|pi2_32|pi1_32)
     CROSS_COMPILE="arm-linux-gnueabihf-"
     KERNEL_DEFCONFIG="bcmrpi_defconfig"
     KERNEL_BRANCH="${KERNEL_BRANCH:-rpi-6.12.y}"
-
     echo "Selected: 32-bit build (armhf)"
     ;;
 
@@ -66,25 +63,13 @@ echo "PI_VARIANT       = $PI_VARIANT"
 echo "ARCH             = $ARCH"
 echo "CROSS_COMPILE    = $CROSS_COMPILE"
 echo "KERNEL_DEFCONFIG = $KERNEL_DEFCONFIG"
+echo "KERNEL_BRANCH    = $KERNEL_BRANCH"
 echo "----------------------------------------"
 
-
-
-MODULE_NAME="ks8851"
+MODULE_NAME="lan865x"
 KERNEL_REPO="${KERNEL_REPO:-https://github.com/raspberrypi/linux.git}"
 JOBS="${JOBS:-$(nproc 2>/dev/null || echo 4)}"
 
-<<<<<<< HEAD
-WORK_ROOT="$REPO_ROOT/build/ksz8851_cross_${ARCH}-${KERNEL_BRANCH}"
-DOWNLOAD_DIR="$WORK_ROOT/downloads"
-LINUX_SRC_DIR="$WORK_ROOT/src/linux"
-MODULE_SRC_DIR="$WORK_ROOT/src/module"
-MODULE_BUILD_DIR="$WORK_ROOT/build/module"
-OUT_DIR="$WORK_ROOT/out"
-LOG_DIR="$WORK_ROOT/logs"
-ARTEFACT_DIR="$REPO_ROOT/artefacts"
-MODULE_NAME="ks8851"
-=======
 
 DOWNLOAD_DIR="$REPO_ROOT/build/downloads"
 LINUX_SRC_DIR="$REPO_ROOT/build/linux/$KERNEL_BRANCH"
@@ -96,7 +81,7 @@ MODULE_OUT_DIR="$MODULE_ROOT/out/${ARCH}-${KERNEL_BRANCH}"
 MODULE_LOG_DIR="$MODULE_ROOT/logs/${ARCH}-${KERNEL_BRANCH}"
 
 ARTEFACT_DIR="$REPO_ROOT/artefacts"
->>>>>>> be4ee08 (update)
+
 
 die() {
     echo "Error: $*" >&2
@@ -111,8 +96,7 @@ require_command() {
     command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"
 }
 
-
-
+say "STEP0" "Checking required tools"
 
 require_command git
 require_command wget
@@ -120,108 +104,138 @@ require_command make
 require_command bc
 require_command flex
 require_command bison
+require_command sed
+require_command find
 require_command "${CROSS_COMPILE}gcc"
-
 
 mkdir -p \
     "$DOWNLOAD_DIR" \
-    "$MODULE_SRC_DIR" \
-    "$MODULE_BUILD_DIR"
+    "$MODULE_SRC_DIR/include/linux" \
+    "$MODULE_BUILD_DIR" \
+    "$MODULE_OUT_DIR" \
+    "$MODULE_LOG_DIR"
 
 #--------------------------------------------------------------#
-#			Step 3					#
-#		Fetsching Kernel Sources			#
+# Step 1: Fetch kernel sources
 #--------------------------------------------------------------#
-    
- if [[ ! -d "$LINUX_SRC_DIR/.git" ]]; then
+say "STEP1" "Fetching kernel sources"
+
+if [[ ! -d "$LINUX_SRC_DIR/.git" ]]; then
     git clone --depth 1 --branch "$KERNEL_BRANCH" "$KERNEL_REPO" "$LINUX_SRC_DIR"
 else
-    say "STEP3" "Kernel source already present: $LINUX_SRC_DIR"
+    say "STEP1" "Kernel source already present: $LINUX_SRC_DIR"
 fi
 
 #--------------------------------------------------------------#
-#			Step 4					#
-#		Fetsching KSZ8851 Data				#
+# Step 2: Fetch LAN865x / OA-TC6 / T1S sources
 #--------------------------------------------------------------#
-BASE_URL="https://raw.githubusercontent.com/raspberrypi/linux/${KERNEL_BRANCH}/drivers/net/ethernet/micrel"
+say "STEP2" "Fetching module sources"
 
-wget -q -O "$MODULE_SRC_DIR/ks8851_spi.c"    "$BASE_URL/ks8851_spi.c"
-wget -q -O "$MODULE_SRC_DIR/ks8851_common.c" "$BASE_URL/ks8851_common.c"
-wget -q -O "$MODULE_SRC_DIR/ks8851.h"        "$BASE_URL/ks8851.h"
+KERNEL_BRANCH_NUM="${KERNEL_BRANCH#rpi-}"
+KERNEL_BRANCH_NUM="${KERNEL_BRANCH_NUM%.y}"
 
+verlte() {
+    [ "$1" = "$2" ] && return 0
+    [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)" = "$1" ]
+}
+
+if verlte "$KERNEL_BRANCH_NUM" "6.13"; then
+    LAN865X_BRANCH="rpi-6.13.y"
+else
+    LAN865X_BRANCH="$KERNEL_BRANCH"
+fi
+
+BASE_URL_DRV="https://raw.githubusercontent.com/raspberrypi/linux/refs/heads/${LAN865X_BRANCH}/drivers/net"
+BASE_URL_INC="https://raw.githubusercontent.com/raspberrypi/linux/refs/heads/${LAN865X_BRANCH}/include/linux"
+
+wget -q -O "$MODULE_SRC_DIR/lan865x.c" \
+    "$BASE_URL_DRV/ethernet/microchip/lan865x/lan865x.c"
+
+wget -q -O "$MODULE_SRC_DIR/oa_tc6.c" \
+    "$BASE_URL_DRV/ethernet/oa_tc6.c"
+
+wget -q -O "$MODULE_SRC_DIR/include/linux/oa_tc6.h" \
+    "$BASE_URL_INC/oa_tc6.h"
+
+wget -q -O "$MODULE_SRC_DIR/microchip_t1s.c" \
+    "$BASE_URL_DRV/phy/microchip_t1s.c"
 
 #--------------------------------------------------------------#
-#			Step 5					#
-#			Create Makefile				#
+# Step 3: Create module Makefile
 #--------------------------------------------------------------#
+say "STEP3" "Creating module Makefile"
+
 cat > "$MODULE_SRC_DIR/Makefile" <<'EOF'
-obj-m := ks8851.o
-ks8851-y := ks8851_spi.o ks8851_common.o
+obj-m := oa_tc6.o lan865x.o microchip_t1s.o
+
+ccflags-y += -I$(M)/include
 EOF
 
 #--------------------------------------------------------------#
-#			Step 6					#
-#			Prepare					#
+# Step 4: Prepare kernel tree
 #--------------------------------------------------------------#
-make -C "$LINUX_SRC_DIR" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" $KERNEL_DEFCONFIG
+say "STEP4" "Preparing kernel tree"
+
+make -C "$LINUX_SRC_DIR" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" "$KERNEL_DEFCONFIG"
 make -C "$LINUX_SRC_DIR" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" modules_prepare
 make -C "$LINUX_SRC_DIR" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" -j"$JOBS" modules
-KVER="$(make -s -C "$LINUX_SRC_DIR" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" kernelrelease)"
 
+KVER="$(make -s -C "$LINUX_SRC_DIR" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" kernelrelease)"
 TARGET_DIR="$ARTEFACT_DIR/$ARCH/$KVER"
 
+say "STEP4" "Kernel release: $KVER"
+say "STEP4" "Target artefact dir: $TARGET_DIR"
+
 #--------------------------------------------------------------#
-#			Step 7					#
-#			build					#
+# Step 5: Build modules
 #--------------------------------------------------------------#
+say "STEP5" "Building modules"
+
 rm -rf "$MODULE_BUILD_DIR"
-mkdir -p "$MODULE_BUILD_DIR"
-cp "$MODULE_SRC_DIR/"* "$MODULE_BUILD_DIR/"
+mkdir -p "$MODULE_BUILD_DIR/include/linux"
+
+cp "$MODULE_SRC_DIR/lan865x.c" "$MODULE_BUILD_DIR/"
+cp "$MODULE_SRC_DIR/oa_tc6.c" "$MODULE_BUILD_DIR/"
+cp "$MODULE_SRC_DIR/microchip_t1s.c" "$MODULE_BUILD_DIR/"
+cp "$MODULE_SRC_DIR/Makefile" "$MODULE_BUILD_DIR/"
+cp "$MODULE_SRC_DIR/include/linux/oa_tc6.h" "$MODULE_BUILD_DIR/include/linux/"
 
 make -C "$LINUX_SRC_DIR" \
     M="$MODULE_BUILD_DIR" \
     ARCH="$ARCH" \
     CROSS_COMPILE="$CROSS_COMPILE" \
     modules
-    
+
 #--------------------------------------------------------------#
-#			Step 8					#
-#			postprocess				#
+# Step 6: Postprocess
 #--------------------------------------------------------------#
-<<<<<<< HEAD
-[[ -f "$MODULE_BUILD_DIR/${MODULE_NAME}.ko" ]] || die "${MODULE_NAME}.ko was not created"
-
-
-
-
-mkdir -p "$TARGET_DIR"
-
-cp "$MODULE_BUILD_DIR/${MODULE_NAME}.ko" \
-   "$TARGET_DIR/${MODULE_NAME}.ko"
-   
-   
-   
-=======
-say "STEP8" "Postprocessing artefacts"
-
-[[ -f "$MODULE_BUILD_DIR/${MODULE_NAME}.ko" ]] || die "${MODULE_NAME}.ko was not created"
-
-[[ -f "$MODULE_BUILD_DIR/${MODULE_NAME}.ko" ]] || die "${MODULE_NAME}.ko was not created"
+say "STEP6" "Postprocessing artefacts"
 
 mkdir -p "$TARGET_DIR"
 mkdir -p "$MODULE_OUT_DIR"
 
-cp "$MODULE_BUILD_DIR/${MODULE_NAME}.ko" \
-   "$TARGET_DIR/${MODULE_NAME}.ko"
+mapfile -t KO_FILES < <(find "$MODULE_BUILD_DIR" -maxdepth 1 -type f -name '*.ko' | sort)
 
-cp "$MODULE_BUILD_DIR/${MODULE_NAME}.ko" \
-   "$MODULE_OUT_DIR/${MODULE_NAME}-${ARCH}-${KERNEL_BRANCH}.ko"
+[[ "${#KO_FILES[@]}" -gt 0 ]] || die "No .ko files were created"
 
-say "STEP8" "Created:"
-say "STEP8" "  $TARGET_DIR/${MODULE_NAME}.ko"
-say "STEP8" "  $MODULE_OUT_DIR/${MODULE_NAME}-${ARCH}-${KERNEL_BRANCH}.ko"
+say "STEP6" "Found ${#KO_FILES[@]} module(s):"
 
-say "STEP8" "Done"
->>>>>>> be4ee08 (update)
+for ko in "${KO_FILES[@]}"; do
+    ko_name="$(basename "$ko")"
+    ko_base="${ko_name%.ko}"
 
+    say "STEP6" "  $ko_name"
 
+    cp "$ko" "$TARGET_DIR/$ko_name"
+    cp "$ko" "$MODULE_OUT_DIR/${ko_base}-${ARCH}-${KERNEL_BRANCH}.ko"
+done
+
+say "STEP6" "Created artefacts in:"
+say "STEP6" "  $TARGET_DIR"
+say "STEP6" "  $MODULE_OUT_DIR"
+
+say "STEP7" "Done"
+say "STEP7" "Modules built:"
+for ko in "${KO_FILES[@]}"; do
+    say "STEP7" "  $(basename "$ko")"
+done
