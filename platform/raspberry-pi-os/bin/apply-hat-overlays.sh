@@ -35,7 +35,8 @@ modules=(
     adin1110     # T1L
     ks8851       # Ethernet
     mcp251xfd    # CAN FD
-    sc16is7xx    # UART
+    sc16is7xx    # UART + Modbus
+    sc16is7xx_i2c # UART + Modbus
 )
 
 for mod in "${modules[@]}"; do
