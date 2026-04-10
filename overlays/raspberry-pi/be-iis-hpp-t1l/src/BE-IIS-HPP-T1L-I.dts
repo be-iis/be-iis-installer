@@ -45,7 +45,7 @@
 			cs-gpios =
 				<&gpio 8  GPIO_ACTIVE_LOW>,   /* CE0 */
 				<&gpio 7  GPIO_ACTIVE_LOW>,   /* CE1 */
-				<&gpio 16 GPIO_ACTIVE_LOW>;   /* CS2 */
+				<&gpio 16 GPIO_ACTIVE_LOW>;   /* CE2 */
 
 			/*
 			 * ADIN1110 on SPI0, chip select 0 (CE0)
@@ -55,9 +55,9 @@
 				compatible = "adi,adin1110";
 				reg = <0>; /* CE0 */
 
-				/* 10 Mbps over 10BASE-T1L usually needs high SPI clock */
-				/* start conservative if needed, increase later */
-				spi-max-frequency = <1500000>;
+				pinctrl-names = "default";
+			    	pinctrl-0 = <&be_iis_shared_irq_pins>;
+				spi-max-frequency = <20000000>;
 
 				/* optional SPI CRC checking */
 				adi,spi-crc;
@@ -85,23 +85,23 @@
 	};
 
 
-	/* disable spidev on CE0 so the kernel can bind the LAN865x driver */
+	/* disable spidev on CE0 because CE0 is used by this BE-IIS HAT++ device */
 	fragment@1 {
 		target = <&spidev0>;
 		__overlay__ {
 			status = "disabled";
 		};
 	};
-	/* GPIO6 as input, no pull (IRQ pin) */
+	/* GPIO5,GPIO6,GPIO12,GPIO17,GPIO27 as input, no pull (IRQ pin) */
 	fragment@2 {
-		target = <&gpio>;
-		__overlay__ {
-			eth1_int_pins: eth1_int_pins {
-				brcm,pins = <6>;
-				brcm,function = <0>; /* input */
-				brcm,pull = <0>;     /* none */
-			};
+	    target = <&gpio>;
+	    __overlay__ {
+		be_iis_shared_irq_pins: be-iis-shared-irq-pins {
+			brcm,pins = <5 6 12 17 27>;
+			brcm,function = <0 0 0 0 0>;
+			brcm,pull = <2 2 2 2 2>;
 		};
+	    };
 	};
 	
 	/* disable spidev on CE1 so the kernel can bind the LAN865x driver */
@@ -111,53 +111,6 @@
 		status = "disabled";
 		};
 	};
-	
-	/* reserve GP5 */
-	fragment@5 {
-		target = <&gpio>;
-		__overlay__ {
-			gpio5_reserved: gpio5_reserved {
-				gpio-hog;
-				gpios = <5 GPIO_ACTIVE_HIGH>;
-				input;
-			};
-		};
-	};
-	/* reserve GP12 */
-	fragment@6 {
-		target = <&gpio>;
-		__overlay__ {
-			gpio12_reserved: gpio12_reserved {
-				gpio-hog;
-				gpios = <12 GPIO_ACTIVE_HIGH>;
-				input;
-			};
-		};
-	};
-	/* reserve GP17 */
-	fragment@7 {
-		target = <&gpio>;
-		__overlay__ {
-			gpio17_reserved: gpio17_reserved {
-				gpio-hog;
-				gpios = <17 GPIO_ACTIVE_HIGH>;
-				input;
-			};
-		};
-	};
-	/* reserve GP27 */
-	fragment@8 {
-		target = <&gpio>;
-		__overlay__ {
-			gpio27_reserved: gpio27_reserved {
-				gpio-hog;
-				gpios = <27 GPIO_ACTIVE_HIGH>;
-				input;
-			};
-		};
-	};
-	
-	
 	fragment@9 {
 	target = <&i2c0>;
 	__overlay__ {
@@ -182,15 +135,15 @@
 			status = "okay";
 		};
 		
-		ee80: eeprom@80 {
+		ee74: eeprom@74 {
 			compatible = "atmel,24c32";
-			reg = <0x70>;
+			reg = <0x74>;
 			status = "okay";
 		};
 		
-		ee90: eeprom@90 {
+		ee76: eeprom@76 {
 			compatible = "atmel,24c32";
-			reg = <0x70>;
+			reg = <0x76>;
 			status = "okay";
 		};
 	};

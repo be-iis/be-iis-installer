@@ -56,7 +56,7 @@
 				mac-address = [ 02 00 00 00 00 02 ];
 
 				/* LAN865x TC6 SPI clock; start conservative if unsure */
-				spi-max-frequency = <15000000>;
+				spi-max-frequency = <20000000>;
 				
 				/* optional SPI CRC checking */
 				adi,spi-crc;

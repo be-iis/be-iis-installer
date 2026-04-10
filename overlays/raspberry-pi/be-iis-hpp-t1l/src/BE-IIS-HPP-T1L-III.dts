@@ -44,7 +44,7 @@
 				/* optional SPI CRC checking */
 				adi,spi-crc;
 
-				spi-max-frequency = <15000000>;
+				spi-max-frequency = <20000000>;
 				
 				#address-cells = <1>;
 				#size-cells = <0>;

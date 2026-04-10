@@ -23,7 +23,7 @@
 				interrupt-parent = <&gpio>;
 				interrupts = <12 IRQ_TYPE_EDGE_FALLING>;
 
-				spi-max-frequency = <15000000>;
+				spi-max-frequency = <20000000>;
 				status = "okay";
 			};
 		};

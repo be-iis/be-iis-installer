@@ -16,11 +16,11 @@
 			eth3: ethernet@2 {
 				compatible = "microchip,lan8651", "microchip,lan8650";
 				reg = <2>;
-
+				
 				interrupt-parent = <&gpio>;
-				interrupts = <12 IRQ_TYPE_EDGE_FALLING>;
+				interrupts = <5 IRQ_TYPE_EDGE_FALLING>;
 
-				spi-max-frequency = <15000000>;
+				spi-max-frequency = <20000000>;
 				status = "okay";
 			};
 		};

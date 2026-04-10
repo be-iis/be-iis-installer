@@ -24,81 +24,47 @@
 			ksz8851_i: ethernet@0 {
 				compatible = "micrel,ks8851";
 				reg = <0>;
-				/*
-				pinctrl-names = "default";
-				pinctrl-0 = <&ksz8851_i_int_pins>;
-				*/
+				
+			    	pinctrl-names = "default";
+			    	pinctrl-0 = <&be_iis_shared_irq_pins>;
+				
 				interrupt-parent = <&gpio>;
 				interrupts = <6 IRQ_TYPE_EDGE_FALLING>;
 
-				spi-max-frequency = <15000000>;
+				spi-max-frequency = <20000000>;
 				status = "okay";
 			};
 		};
 	};
 
-	/* disable spidev on CE0 so the kernel can bind the LAN865x driver */
+	/* disable spidev on CE0 because CE0 is used by this BE-IIS HAT++ device */
 	fragment@1 {
 		target = <&spidev0>;
 		__overlay__ {
 			status = "disabled";
 		};
 	};
-	
-	/* disable spidev on CE1 so the kernel can bind the LAN865x driver */
+	/* GPIO5,GPIO6,GPIO12,GPIO17,GPIO27 as input, no pull (IRQ pin) */
 	fragment@2 {
+	    target = <&gpio>;
+	    __overlay__ {
+		be_iis_shared_irq_pins: be-iis-shared-irq-pins {
+			brcm,pins = <5 6 12 17 27>;
+			brcm,function = <0 0 0 0 0>;
+			brcm,pull = <2 2 2 2 2>;
+		};
+	    };
+	};
+	
+	/* disable spidev on CE1 to keep the second chip-select free for BE-IIS HAT++ use */
+	fragment@3 {
 		target = <&spidev1>;
 		__overlay__ {
-			status = "disabled";
-		};
-	};
-	
-	/* reserve GP5 */
-	fragment@4 {
-		target = <&gpio>;
-		__overlay__ {
-			gpio5_reserved: gpio5_reserved {
-				gpio-hog;
-				gpios = <5 GPIO_ACTIVE_HIGH>;
-				input;
-			};
-		};
-	};
-	/* reserve GP12 */
-	fragment@5 {
-		target = <&gpio>;
-		__overlay__ {
-			gpio12_reserved: gpio12_reserved {
-				gpio-hog;
-				gpios = <12 GPIO_ACTIVE_HIGH>;
-				input;
-			};
-		};
-	};
-	/* reserve GP17 */
-	fragment@6 {
-		target = <&gpio>;
-		__overlay__ {
-			gpio17_reserved: gpio17_reserved {
-				gpio-hog;
-				gpios = <17 GPIO_ACTIVE_HIGH>;
-				input;
-			};
-		};
-	};
-	/* reserve GP27 */
-	fragment@7 {
-		target = <&gpio>;
-		__overlay__ {
-			gpio27_reserved: gpio27_reserved {
-				gpio-hog;
-				gpios = <27 GPIO_ACTIVE_HIGH>;
-				input;
-			};
+		status = "disabled";
 		};
 	};
 
-	fragment@8 {
+	fragment@9 {
 	target = <&i2c0>;
 	__overlay__ {
 		#address-cells = <1>;
@@ -136,14 +102,36 @@
 	};
 };
 
-fragment@9 {
+fragment@10 {
 	target = <&gpio>;
 	__overlay__ {
-		ksz8851_reset_high: ksz8851_reset_high {
+		be_iis_porst: be-iis-porst {
 			gpio-hog;
 			gpios = <13 GPIO_ACTIVE_HIGH>;
 			output-high;
-			line-name = "ksz8851-reset";
+			line-name = "BE-IIS-Power-on-reset";
+		};
+	};
+};
+
+fragment@22 {
+	target-path = "/";
+	__overlay__ {
+		mcp2518fd_osc: mcp2518fd_osc {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <20000000>;
+		};
+	};
+};
+
+fragment@30 {
+	target-path = "/";
+	__overlay__ {
+		sc16is752_clk: sc16is752_clk {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <3027000>;
 		};
 	};
 };
