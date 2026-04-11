@@ -20,6 +20,12 @@ See:
 [`test_target1.sh`](./test_target1.sh)  
 [`test_target2.sh`](./test_target2.sh)
 
+### Important Note (MAC Address Handling)
+
+In test_target1.sh, a random locally administered MAC address is assigned to the interface.
+This is required because both devices may otherwise use identical default MAC addresses (e.g. from the driver).
+Unique MAC addresses are mandatory for correct Layer 2 communication (ARP, switching, etc.).
+
 ### Pi 1
 ```bash
 ./test_target1.sh

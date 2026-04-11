@@ -9,7 +9,7 @@ GW="$4"
 DNS="$5"
 
 if [ -z "$IFACE" ] || [ -z "$SSID" ] || [ -z "$IP" ]; then
-    echo "Usage: $0 <interface> <ssid> <ip> [gateway] [dns]"
+    echo "Usage: $0 <interface> <ssid> <ip/cidr> [gateway] [dns]"
     echo "Example: $0 wlan0 MyWiFi 192.168.178.220/24 192.168.178.1 192.168.178.1"
     exit 1
 fi
@@ -29,11 +29,10 @@ sudo nmcli con modify "$CON_NAME" wifi-sec.key-mgmt wpa-psk
 sudo nmcli con modify "$CON_NAME" wifi-sec.psk "$PASS"
 
 # IP config
-sudo nmcli con modify "$CON_NAME" ipv4.method manual
 sudo nmcli con modify "$CON_NAME" ipv4.addresses "$IP"
-
 [ -n "$GW" ] && sudo nmcli con modify "$CON_NAME" ipv4.gateway "$GW"
 [ -n "$DNS" ] && sudo nmcli con modify "$CON_NAME" ipv4.dns "$DNS"
+sudo nmcli con modify "$CON_NAME" ipv4.method manual
 
 # Bring up
 sudo nmcli con up "$CON_NAME"

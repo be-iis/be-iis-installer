@@ -8,6 +8,16 @@ PEER_IP="100.100.100.2"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# --- Generate random locally administered MAC ---
+RAND_MAC=$(printf '02:%02x:%02x:%02x:%02x:%02x\n' \
+  $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)) \
+  $((RANDOM%256)) $((RANDOM%256)))
+
+echo "[TEST] Set random MAC: $RAND_MAC"
+sudo ip link set "$IFACE" down
+sudo ip link set "$IFACE" address "$RAND_MAC"
+sudo ip link set "$IFACE" up
+
 echo "[TEST] Configure IP"
 "$SCRIPT_DIR/../../../scripts/net/set_static_ip.sh" "$IFACE" "$IP"
 
