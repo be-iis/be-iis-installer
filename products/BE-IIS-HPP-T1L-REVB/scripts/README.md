@@ -1,75 +1,18 @@
-# set_mac.sh -- Random MAC Assignment for T1L Interfaces
+# Purpose
+Scripts supporting the BE-IIS-HPP-T1L-REVB product configuration, initialization, and deployment on Linux-based systems.
 
-## Description
+# Files
+- `set_mac.sh` &mdash; Assigns a MAC address to the target network device based on user input or hardware configuration.
 
-This script assigns a **random locally administered MAC address** to all
-available BE-IIS T1L interfaces.
+# Usage
+Run scripts directly from this directory. `set_mac.sh` requires execution permissions:
 
-It checks for the presence of:
-
--   beiis-t1l1
--   beiis-t1l2
--   beiis-t1l3
-
-If one or more interfaces exist, a unique MAC address is generated and
-applied.
-
-------------------------------------------------------------------------
-
-## Why this is required
-
-Some drivers or early setups may assign identical default MAC addresses
-(e.g. 02:00:00:00:00:XX) to multiple interfaces.
-
-This leads to: - ARP conflicts - unstable communication - packet loss -
-incorrect switch behavior
-
-Each interface must have a unique MAC address for correct Layer 2
-operation.
-
-------------------------------------------------------------------------
-
-## Behavior
-
--   Detects existing T1L interfaces automatically
--   Generates a random MAC address per interface
--   Uses locally administered MACs (02:xx:xx:xx:xx:xx)
--   Applies MAC safely (interface down → set → up)
-
-------------------------------------------------------------------------
-
-## Usage
-
-``` bash
+```bash
 chmod +x set_mac.sh
 ./set_mac.sh
 ```
+Adjust command-line arguments as required by the script's internal usage instructions.
 
-------------------------------------------------------------------------
-
-## Verification
-
-``` bash
-ip link show beiis-t1l1
-```
-
-Expected:
-
-    link/ether 02:xx:xx:xx:xx:xx
-
-------------------------------------------------------------------------
-
-## Notes
-
--   Requires sudo privileges (used internally)
--   Safe to run multiple times (new MAC each run)
--   Does not affect other interfaces (e.g. LAN, Wi-Fi)
-
-------------------------------------------------------------------------
-
-## BE-IIS Context
-
-This script ensures stable operation in: - point-to-point T1L links -
-multi-interface setups - bridged environments
-
-It is recommended to run this script before executing network tests.
+# Notes
+- Designed for BE-IIS-HPP-T1L-REVB hardware during system provisioning or network interface setup.
+- Ensure required privileges to modify network settings.

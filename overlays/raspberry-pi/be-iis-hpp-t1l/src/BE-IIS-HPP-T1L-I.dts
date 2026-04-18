@@ -104,13 +104,14 @@
 	    };
 	};
 	
-	/* disable spidev on CE1 so the kernel can bind the LAN865x driver */
+	/* disable spidev on CE1 to keep the second chip-select free for BE-IIS HAT++ use */
 	fragment@3 {
 		target = <&spidev1>;
 		__overlay__ {
 		status = "disabled";
 		};
 	};
+
 	fragment@9 {
 	target = <&i2c0>;
 	__overlay__ {
@@ -152,17 +153,14 @@
 fragment@10 {
 	target = <&gpio>;
 	__overlay__ {
-		ksz8851_reset_high: ksz8851_reset_high {
+		be_iis_porst: be-iis-porst {
 			gpio-hog;
 			gpios = <13 GPIO_ACTIVE_HIGH>;
 			output-high;
-			line-name = "ksz8851-reset";
+			line-name = "BE-IIS-Power-on-reset";
 		};
 	};
 };
-
-
-
 	__overrides__ {
 
 		speed    = <&eth1>, "spi-max-frequency:0";

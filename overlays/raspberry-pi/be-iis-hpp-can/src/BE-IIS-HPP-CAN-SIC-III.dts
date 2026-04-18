@@ -45,7 +45,7 @@
 				interrupt-parent = <&gpio>;
 				interrupts = <12 IRQ_TYPE_LEVEL_LOW>;
 				
-				spi-max-frequency = <15000000>;
+				spi-max-frequency = <20000000>;
 				enable-gpios = <&gpio 0 GPIO_ACTIVE_HIGH>;
 				clocks = <&mcp2518fd_CLK_CAN_III>;
 				status = "okay";
@@ -59,7 +59,7 @@ fragment@22 {
 		mcp2518fd_CLK_CAN_III: mcp2518fd_CLK_CAN_III {
 			compatible = "fixed-clock";
 			#clock-cells = <0>;
-			clock-frequency = <20000000>;
+			clock-frequency = <40000000>;
 		};
 	};
 };

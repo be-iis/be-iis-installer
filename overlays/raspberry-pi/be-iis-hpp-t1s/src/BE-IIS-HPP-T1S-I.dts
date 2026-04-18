@@ -148,28 +148,6 @@ fragment@10 {
 	};
 };
 
-fragment@22 {
-	target-path = "/";
-	__overlay__ {
-		mcp2518fd_osc: mcp2518fd_osc {
-			compatible = "fixed-clock";
-			#clock-cells = <0>;
-			clock-frequency = <20000000>;
-		};
-	};
-};
-
-fragment@30 {
-	target-path = "/";
-	__overlay__ {
-		sc16is752_clk: sc16is752_clk {
-			compatible = "fixed-clock";
-			#clock-cells = <0>;
-			clock-frequency = <3027000>;
-		};
-	};
-};
-
 	__overrides__ {
 
 		/* dtoverlay=lan8651,speed=200000000 */
