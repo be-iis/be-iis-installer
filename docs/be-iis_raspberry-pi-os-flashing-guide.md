@@ -18,28 +18,27 @@ This guide shows how to:
 
 Use this for Raspberry Pi models that support the 64-bit Raspberry Pi OS release.
 
+Both Lite and Full versions are supported.
+
 Official compatibility includes:
 
 - Raspberry Pi 3B
 - Raspberry Pi 3B+
 - Raspberry Pi 3A+
 - Raspberry Pi 4B
-- Raspberry Pi 400
 - Raspberry Pi 5
-- Raspberry Pi 500
-- Raspberry Pi 500+
-- Raspberry Pi CM3
-- Raspberry Pi CM3+
-- Raspberry Pi CM4
-- Raspberry Pi CM4S
-- Raspberry Pi CM5
 - Raspberry Pi Zero 2 W
 
 Download directly:
-
+Lite (minimal system, no desktop)
 ```bash
 cd ~/Downloads
 wget https://downloads.raspberrypi.com/raspios_lite_arm64/images/raspios_lite_arm64-2025-12-04/2025-12-04-raspios-trixie-arm64-lite.img.xz -O raspios-lite-64bit.img.xz
+```
+Full (with desktop environment)
+```bash
+cd ~/Downloads
+wget https://downloads.raspberrypi.com/raspios_full_arm64/images/raspios_full_arm64-2025-12-04/2025-12-04-raspios-trixie-arm64-full.img.xz -O raspios-full-64bit.img.xz
 ```
 
 ### Option B: Raspberry Pi OS Lite (32-bit)
@@ -51,6 +50,11 @@ Download directly:
 ```bash
 cd ~/Downloads
 wget https://downloads.raspberrypi.com/raspios_lite_armhf/images/raspios_lite_armhf-2025-12-04/2025-12-04-raspios-trixie-armhf-lite.img.xz -O raspios-lite-32bit.img.xz
+```
+Full (with desktop environment)
+```bash
+cd ~/Downloads
+wget https://downloads.raspberrypi.com/raspios_full_armhf/images/raspios_full_armhf-2025-12-04/2025-12-04-raspios-trixie-armhf-full.img.xz -O raspios-full-32bit.img.xz
 ```
 
 ### Which one should I use?
@@ -97,13 +101,11 @@ sudo umount /dev/sdb2 || true
 ### 3. Flash directly from `.xz`
 
 Example for the 64-bit image:
-
 ```bash
 xzcat raspios-lite-64bit.img.xz | sudo dd of=/dev/sdb bs=4M status=progress conv=fsync
 ```
 
 Example for the 32-bit image:
-
 ```bash
 xzcat raspios-lite-32bit.img.xz | sudo dd of=/dev/sdb bs=4M status=progress conv=fsync
 ```
@@ -149,10 +151,24 @@ Replace:
 - `<username>` with your username
 - `<password>` with your password
 
-### 8. Unmount the boot partition
+
+### 8. Set hostname
+
+This allows the device to be found easily in the network (e.g. via pi5.local).
+
+```bash
+echo "pi5" | sudo tee /mnt/rpi-boot/hostname
+```
+
+Replace:
+
+- pi5 with your hostname
+
+### 9. Unmount the boot partition
 
 ```bash
 sudo umount /mnt/rpi-boot
+sync
 ```
 
 ---
