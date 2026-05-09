@@ -133,7 +133,7 @@ fragment@30 {
 		sc16is752_CLK_UART_I: sc16is752_CLK_UART_I {
 			compatible = "fixed-clock";
 			#clock-cells = <0>;
-			clock-frequency = <3027000>;
+			clock-frequency = <22118400>;
 		};
 	};
 };

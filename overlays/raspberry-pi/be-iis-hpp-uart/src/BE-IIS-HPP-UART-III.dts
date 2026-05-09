@@ -33,7 +33,7 @@
 		sc16is752_CLK_UART_III: sc16is752_CLK_UART_III {
 			compatible = "fixed-clock";
 			#clock-cells = <0>;
-			clock-frequency = <3027000>;
+			clock-frequency = <22118400>;
 			};
 		};
 	};

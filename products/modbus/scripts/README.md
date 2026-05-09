@@ -1,3 +1,0 @@
-# Scripts
-
-Install scripts.

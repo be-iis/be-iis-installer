@@ -36,9 +36,9 @@
 			#size-cells = <0>;
 			status = "okay";
 
-			uart3: sc16is752@49 {
+			uart3: sc16is752@4C {
 				compatible = "nxp,sc16is752";
-				reg = <0x4D>;
+				reg = <0x4C>;
 
 				clocks = <&sc16is752_CLK_MODBUS_I>;
 
@@ -135,7 +135,7 @@
 		sc16is752_CLK_MODBUS_I: sc16is752_CLK_MODBUS_I{
 			compatible = "fixed-clock";
 			#clock-cells = <0>;
-			clock-frequency = <3027000>;
+			clock-frequency = <22118400>;
 			};
 		};
 	};

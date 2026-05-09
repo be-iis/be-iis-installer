@@ -58,6 +58,8 @@
 				pinctrl-names = "default";
 			    	pinctrl-0 = <&be_iis_shared_irq_pins>;
 				spi-max-frequency = <20000000>;
+				
+				reset-gpios = <&gpio 13 GPIO_ACTIVE_LOW>;
 
 				/* optional SPI CRC checking */
 				adi,spi-crc;
@@ -146,18 +148,6 @@
 			compatible = "atmel,24c32";
 			reg = <0x76>;
 			status = "okay";
-		};
-	};
-};
-
-fragment@10 {
-	target = <&gpio>;
-	__overlay__ {
-		be_iis_porst: be-iis-porst {
-			gpio-hog;
-			gpios = <13 GPIO_ACTIVE_HIGH>;
-			output-high;
-			line-name = "BE-IIS-Power-on-reset";
 		};
 	};
 };
