@@ -82,6 +82,7 @@
 	__overlay__ {
 		#address-cells = <1>;
 		#size-cells = <0>;
+		clock-frequency = <1000000>;
 
 		ee50: eeprom@50 {
 			compatible = "atmel,24c32";

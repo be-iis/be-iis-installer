@@ -35,7 +35,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "okay";
-
+			
 			uart3: sc16is752@4C {
 				compatible = "nxp,sc16is752";
 				reg = <0x4C>;
