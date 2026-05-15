@@ -67,8 +67,8 @@
 				interrupt-parent = <&gpio>;
 				interrupts = <6 IRQ_TYPE_LEVEL_LOW>;
 
-				/* optional fixed MAC address */
-				mac-address = [ 02 00 00 00 00 01 ];
+				/* optional fixed MAC address
+				mac-address = [ 02 00 00 00 00 01 ]; */
 
 				#address-cells = <1>;
 				#size-cells = <0>;

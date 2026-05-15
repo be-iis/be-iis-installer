@@ -38,8 +38,8 @@
 				interrupt-parent = <&gpio>;
 				interrupts = <12 IRQ_TYPE_EDGE_FALLING>;
 		
-				/* optional: set a fixed MAC (better: let it be set by userspace) */
-				mac-address = [ 02 00 00 00 00 03 ];
+				/* optional: set a fixed MAC (better: let it be set by userspace)
+				mac-address = [ 02 00 00 00 00 03 ];*/
 				
 				/* optional SPI CRC checking */
 				adi,spi-crc;

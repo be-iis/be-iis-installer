@@ -58,12 +58,11 @@ rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 
 STEP="STEP3"
-say "$STEP" "Downloading sources"cd
+say "$STEP" "Downloading sources"
 
 BASE_URL="https://raw.githubusercontent.com/raspberrypi/linux/rpi-6.12.y/drivers/net/ethernet/adi"
 
 wget -nv -O "$BUILD_DIR/adin1110.c" "$BASE_URL/adin1110.c"
-
 
 STEP="STEP3b"
 say "$STEP" "Applying compatibility patch for kernels without CONFIG_NET_SWITCHDEV"
@@ -71,6 +70,22 @@ sed -i '/offload_fwd_mark = port_priv->priv->forwarding;/c\
 #ifdef CONFIG_NET_SWITCHDEV\
 \t\t\trxb->offload_fwd_mark = port_priv->priv->forwarding;\
 #endif' "$BUILD_DIR/adin1110.c"
+
+STEP="STEP3c"
+say "$STEP" "Applying BE-IIS random MAC fallback patch"
+
+PATCH_FILE="${REPO_ROOT}/products/BE-IIS-HPP-T1L-REVB/files/adin1110-random-mac-fallback.patch"
+
+if [ -f "$PATCH_FILE" ]; then
+    if patch -d "$BUILD_DIR" -p0 --forward --dry-run < "$PATCH_FILE" >/dev/null 2>&1; then
+        patch -d "$BUILD_DIR" -p0 --forward < "$PATCH_FILE"
+        say "$STEP" "Patch applied: $PATCH_FILE"
+    else
+        say "$STEP" "WARNING: Patch could not be applied, continuing without random MAC fallback"
+    fi
+else
+    say "$STEP" "WARNING: Patch file not found: $PATCH_FILE"
+fi
 
 STEP="STEP4"
 say "$STEP" "Creating Makefile"

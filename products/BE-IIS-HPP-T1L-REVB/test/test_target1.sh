@@ -3,8 +3,8 @@
 set -e
 
 IFACE="beiis-t1l0"
-IP="100.100.100.1"
-PEER_IP="100.100.100.2"
+IP="10.10.10.1"
+PEER_IP="10.10.10.2"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 

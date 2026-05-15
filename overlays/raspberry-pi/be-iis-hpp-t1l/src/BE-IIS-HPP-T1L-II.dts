@@ -52,8 +52,8 @@
 				interrupt-parent = <&gpio>;
 				interrupts = <5 IRQ_TYPE_EDGE_FALLING>;
 
-				/* optional: set a fixed MAC (better: let it be set by userspace) */
-				mac-address = [ 02 00 00 00 00 02 ];
+				/* optional: set a fixed MAC (better: let it be set by userspace)
+				mac-address = [ 02 00 00 00 00 02 ]; */
 
 				/* LAN865x TC6 SPI clock; start conservative if unsure */
 				spi-max-frequency = <20000000>;

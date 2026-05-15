@@ -59,11 +59,11 @@ if ! command -v iperf3 >/dev/null 2>&1; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PEER_IP="100.100.100.2"
+PEER_IP="10.10.10.2"
 TEST_TIME=10
 
 echo "[TEST] Configure static IP on beiis-t1s0"
-"$SCRIPT_DIR/../../../scripts/net/set_static_ip.sh" beiis-t1s0 100.100.100.1
+"$SCRIPT_DIR/../../../scripts/net/set_static_ip.sh" beiis-t1s0 10.10.10.1
 
 echo "[TEST] Configure PLCA Node-ID 0"
 sudo ethtool --set-plca-cfg beiis-t1s0 enable on node-id 0 node-cnt 2

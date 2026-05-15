@@ -60,7 +60,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "[TEST] Configure static IP on beiis-t1s0"
-"$SCRIPT_DIR/../../../scripts/net/set_static_ip.sh" beiis-t1s0 100.100.100.2
+"$SCRIPT_DIR/../../../scripts/net/set_static_ip.sh" beiis-t1s0 10.10.10.2
 
 echo "[TEST] Configure PLCA Node-ID 1"
 sudo ethtool --set-plca-cfg beiis-t1s0 enable on node-id 1 node-cnt 2
