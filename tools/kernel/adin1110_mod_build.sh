@@ -60,16 +60,28 @@ mkdir -p "$BUILD_DIR"
 STEP="STEP3"
 say "$STEP" "Downloading sources"
 
-BASE_URL="https://raw.githubusercontent.com/raspberrypi/linux/rpi-6.12.y/drivers/net/ethernet/adi"
+KMAJOR="$(echo "$KVER" | cut -d. -f1)"
+KMINOR="$(echo "$KVER" | cut -d. -f2)"
+KBRANCH="rpi-${KMAJOR}.${KMINOR}.y"
+
+BASE_URL="https://raw.githubusercontent.com/raspberrypi/linux/${KBRANCH}/drivers/net/ethernet/adi"
+
+say "$STEP" "Using Raspberry Pi kernel branch: $KBRANCH"
 
 wget -nv -O "$BUILD_DIR/adin1110.c" "$BASE_URL/adin1110.c"
 
 STEP="STEP3b"
-say "$STEP" "Applying compatibility patch for kernels without CONFIG_NET_SWITCHDEV"
-sed -i '/offload_fwd_mark = port_priv->priv->forwarding;/c\
+
+if grep -q '^CONFIG_NET_SWITCHDEV=y' "$KDIR/.config"; then
+    say "$STEP" "CONFIG_NET_SWITCHDEV enabled, no compatibility patch needed"
+else
+    say "$STEP" "Applying compatibility patch for kernels without CONFIG_NET_SWITCHDEV"
+
+    sed -i '/offload_fwd_mark = port_priv->priv->forwarding;/c\
 #ifdef CONFIG_NET_SWITCHDEV\
 \t\t\trxb->offload_fwd_mark = port_priv->priv->forwarding;\
 #endif' "$BUILD_DIR/adin1110.c"
+fi
 
 STEP="STEP3c"
 say "$STEP" "Applying BE-IIS random MAC fallback patch"
