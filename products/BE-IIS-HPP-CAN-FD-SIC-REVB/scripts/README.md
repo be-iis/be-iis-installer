@@ -1,187 +1,73 @@
-# BE-IIS CAN / CAN-FD Test Scripts
+# BE-IIS HPP CAN FD SIC Scripts
 
-This directory contains helper scripts for configuring and testing the CAN-FD interface of the BE-IIS CAN-FD-SIC HAT.
-
-The setup was validated using:
-
-- MCP2518FD CAN-FD controller
-- TCAN1472 CAN-FD SIC transceiver
-- Raspberry Pi
-- Linux SocketCAN
-
-Validated CAN-FD communication:
-
-- Classic CAN: 1 MBit/s
-- CAN-FD Data Phase: 5 MBit/s
-- CAN-FD Data Phase: 7 MBit/s
-
----
+Utility scripts for testing and configuring the BE-IIS HPP CAN FD SIC board.
 
 # Files
 
-| File | Description |
-|---|---|
-| `config_classic_can.sh` | Configure Classic CAN (1 MBit/s) |
-| `config_1M_can.sh` | Configure CAN-FD with 1 MBit/s data phase |
-| `config_5M_can.sh` | Configure CAN-FD with 5 MBit/s data phase |
-| `config_7M_can.sh` | Configure CAN-FD with 7 MBit/s data phase |
-| `test.py` | CAN / CAN-FD request-response test |
+- [`canperf.py`](./canperf.py)  
+  CAN / CAN-FD TX and RX performance test tool.
 
----
+- [`config_classic_can.sh`](./config_classic_can.sh)  
+  Configure Classic CAN.
 
-# Requirements
+- [`config_1M_can.sh`](./config_1M_can.sh)  
+  Configure 1 MBit CAN.
 
-Install SocketCAN utilities:
+- [`config_5M_can.sh`](./config_5M_can.sh)  
+  Configure CAN-FD with 5 MBit data phase.
 
-```bash
-sudo apt update
-sudo apt install can-utils
-```
+- [`config_7M_can.sh`](./config_7M_can.sh)  
+  Configure CAN-FD with 7 MBit data phase.
 
----
+- [`config_8M_can.sh`](./config_8M_can.sh)  
+  Configure CAN-FD with 8 MBit data phase.
 
-# Script Permissions
+- [`test.py`](./test.py)  
+  Simple CAN communication test.
 
-Make scripts executable:
+# Examples
 
-```bash
-chmod +x *.sh
-chmod +x test.py
-```
+Configure CAN-FD 5 MBit:
 
----
-
-# CAN Interface Configuration
-
-Default interface:
-
-```text
-beiis-can0
-```
-
-Custom interface example:
-
-```bash
-./config_5M_can.sh can0
-```
-
----
-
-# Configure Classic CAN
-
-```bash
-./config_classic_can.sh
-```
-
----
-
-# Configure CAN-FD 1 MBit/s
-
-```bash
-./config_1M_can.sh
-```
-
----
-
-# Configure CAN-FD 5 MBit/s
-
-```bash
+```sh
 ./config_5M_can.sh
 ```
 
----
+CAN-FD TX test:
 
-# Configure CAN-FD 7 MBit/s
-
-```bash
-./config_7M_can.sh
+```sh
+./canperf.py tx -i beiis-can0 --size 64 --time 10
 ```
 
----
+CAN-FD RX test:
 
-# CAN / CAN-FD Test
-
-The test performs a request-response communication test between two devices.
-
-## Start Server
-
-On device 1:
-
-```bash
-./test.py -s
+```sh
+./canperf.py rx -i beiis-can0
 ```
 
-## Start Client
+Classic CAN test:
 
-On device 2:
-
-```bash
-./test.py -c
+```sh
+./config_classic_can.sh
+./canperf.py tx -i beiis-can0 --classic --size 8 --time 10
 ```
 
-The client automatically stops after 10 seconds.
+CAN-FD test using can-utils:
 
----
-
-# Classic CAN Test
-
-Server:
-
-```bash
-./test.py -s
+```sh
+cangen beiis-can0 -g 0 -L 64 -f -b
 ```
 
-Client:
+Receive with:
 
-```bash
-./test.py -c --classic
+```sh
+candump beiis-can0
 ```
-
----
-
-# Custom Test Duration
-
-Example:
-
-```bash
-./test.py -c -t 30
-```
-
----
-
-# Custom Interface
-
-Example:
-
-```bash
-./test.py -c -i can0
-```
-
----
-
-# Example Result
-
-```text
-=== CLIENT RESULT ===
-Interface : beiis-can0
-Mode      : CAN-FD
-Duration  : 10.00 s
-OK        : 10112
-Lost      : 0
-Frames/s  : 1011.1
-Payload   : 0.518 MBit/s
-```
-
----
 
 # Notes
 
-- Use proper CAN termination.
-- Use short cables for high CAN-FD data rates.
-- 7 MBit/s CAN-FD data phase was validated successfully.
-- Higher data rates depend on topology, cable length and timing configuration.
+- CAN-FD uses MTU 72
+- Classic CAN uses MTU 16
+- `can-utils` is recommended for additional testing
+- ~3.5 MBit/s effective CAN-FD payload throughput is realistic on Raspberry Pi with MCP2518FD over SPI
 
----
-
-© 2026 Brechel Electronic  
-Industrial Interface Systems
