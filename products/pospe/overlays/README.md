@@ -1,3 +1,0 @@
-# Overlays
-
-Overlay references.

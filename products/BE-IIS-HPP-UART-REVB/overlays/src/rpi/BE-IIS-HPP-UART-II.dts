@@ -17,7 +17,7 @@
 				compatible = "nxp,sc16is752";
 				reg = <0x49>;
 
-				clocks = <&sc16is752_CLK_MODBUS_II>;
+				clocks = <&sc16is752_CLK_UART_II>;
 
 				/* Required for stable IRQ handling on Raspberry Pi 5 / RP1 */
                                 pinctrl-names = "default";
@@ -32,12 +32,12 @@
 	};
 
 	fragment@30 {
-		target-path = "/clocks";
-		__overlay__ {
-			sc16is752_CLK_MODBUS_II: sc16is752_CLK_MODBUS_II {
-				compatible = "fixed-clock";
-				#clock-cells = <0>;
-				clock-frequency = <22118400>;
+	target-path = "/clocks";
+	__overlay__ {
+		sc16is752_CLK_UART_II: sc16is752_CLK_UART_II {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <22118400>;
 			};
 		};
 	};

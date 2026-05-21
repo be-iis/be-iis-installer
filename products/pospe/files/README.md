@@ -1,3 +1,0 @@
-# Files
-
-Static files.

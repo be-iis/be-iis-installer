@@ -1,3 +1,0 @@
-# Udev
-
-Udev rules.

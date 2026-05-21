@@ -1,13 +1,113 @@
 # Purpose
-This directory is reserved for device tree overlays or related configuration files specific to the BE-IIS-HPP-T1S-REVB product variant. Overlays are used to configure hardware interfaces or enable functionalities via the Raspberry Pi/Linux device tree mechanism.
 
-# Files
-- README.md: This file. No device tree overlays or configuration files are currently present.
+Raspberry Pi Device Tree overlays for BE-IIS HAT++ products.
+
+This directory contains:
+
+- overlay source files
+- compiled overlay binaries
+- Raspberry Pi overlay build system
+
+# Directory Structure
+
+```text
+overlays/
+├── README.md
+├── src/
+│   └── rpi/
+│       ├── *.dts
+│       ├── Makefile
+│       └── README.md
+└── build/
+    └── rpi/
+        ├── *.dtbo
+        └── README.md
+```
+
+# Source Files
+
+Overlay source files:
+
+```text
+src/rpi/*.dts
+```
+
+See:
+
+```text
+src/rpi/README.md
+```
+
+# Build Output
+
+Compiled overlays:
+
+```text
+build/rpi/*.dtbo
+```
+
+See:
+
+```text
+build/rpi/README.md
+```
+
+# Build
+
+Build overlays:
+
+```sh
+cd src/rpi
+make
+```
+
+# Install
+
+Compile and install overlays to Raspberry Pi firmware:
+
+```sh
+cd src/rpi
+sudo make install
+```
+
+Installed overlays are copied to:
+
+```text
+/boot/firmware/overlays/
+```
+
+# Clean
+
+Remove all compiled overlays:
+
+```sh
+cd src/rpi
+make clean
+```
 
 # Usage
-Place device tree overlay (`.dtbo`) files in this directory when needed for custom hardware configurations for BE-IIS-HPP-T1S-REVB. Refer to upstream overlays or the Raspberry Pi documentation for overlay generation and usage.
+
+Enable overlays in:
+
+```text
+/boot/firmware/config.txt
+```
+
+Example:
+
+```ini
+dtoverlay=BE-IIS-HPP-T1L-I
+```
+
+Reboot the system:
+
+```sh
+sudo reboot
+```
 
 # Notes
-- Only relevant and product-specific overlays should be added here.
-- Naming convention: use clear and descriptive names related to the product and functionality.
-- No overlays provided in this release.
+
+- Overlay source files are located in `src/rpi/`
+- Compiled `.dtbo` files are generated into `build/rpi/`
+- Do not edit generated `.dtbo` files manually
+- Raspberry Pi 5 / RP1 systems may require explicit pinctrl configuration
