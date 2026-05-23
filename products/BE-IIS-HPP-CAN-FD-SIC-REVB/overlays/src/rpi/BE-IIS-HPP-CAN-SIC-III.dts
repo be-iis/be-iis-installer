@@ -43,7 +43,7 @@
 				reg = <2>; /* CE2 */
 
                                 pinctrl-names = "default";
-                                pinctrl-0 = <&be_iis_shared_irq_pins>;
+                                pinctrl-0 = <&be_iis_in_iii_irq_pin>;
 
 				interrupt-parent = <&gpio>;
 				interrupts = <12 IRQ_TYPE_LEVEL_LOW>;
@@ -65,6 +65,18 @@ fragment@22 {
 			clock-frequency = <40000000>;
 		};
 	};
+};
+
+/* GPIO12 as input, pull-up (IRQ pin) */
+fragment@2 {
+    target = <&gpio>;
+    __overlay__ {
+        be_iis_in_iii_irq_pin: be-iis-in-iii-irq-pin {
+            brcm,pins = <12>;
+            brcm,function = <0>;
+            brcm,pull = <2>;
+        };
+    };
 };
 
 	__overrides__ {

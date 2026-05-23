@@ -43,7 +43,7 @@
 				clocks = <&sc16is752_CLK_UART_I>;
 
                                 pinctrl-names = "default";
-                                pinctrl-0 = <&be_iis_shared_irq_pins>;
+                                pinctrl-0 = <&be_iis_is_i_irq_pin>;
                                 
 				interrupt-parent = <&gpio>;
 				interrupts = <6 IRQ_TYPE_LEVEL_LOW>;
@@ -60,14 +60,14 @@
 			status = "disabled";
 		};
 	};
-	/* GPIO5,GPIO6,GPIO12,GPIO17,GPIO27 as input, no pull (IRQ pin) */
+	/* GPIO6 as input, pull-up (IRQ pin) */
 	fragment@2 {
 	    target = <&gpio>;
 	    __overlay__ {
-		be_iis_shared_irq_pins: be-iis-shared-irq-pins {
-			brcm,pins = <5 6 12 17 27>;
-			brcm,function = <0 0 0 0 0>;
-			brcm,pull = <2 2 2 2 2>;
+		be_iis_in_i_irq_pin: be-iis-in-i-irq-pin {
+		    brcm,pins = <6>;
+		    brcm,function = <0>;
+		    brcm,pull = <2>;
 		};
 	    };
 	};

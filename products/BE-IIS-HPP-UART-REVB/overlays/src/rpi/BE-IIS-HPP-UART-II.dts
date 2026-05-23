@@ -21,7 +21,7 @@
 
 				/* Required for stable IRQ handling on Raspberry Pi 5 / RP1 */
                                 pinctrl-names = "default";
-                                pinctrl-0 = <&be_iis_shared_irq_pins>;
+                                pinctrl-0 = <&be_iis_in_iv_irq_pin>;
                                 
 				interrupt-parent = <&gpio>;
 				interrupts = <17 IRQ_TYPE_LEVEL_LOW>;
@@ -40,6 +40,18 @@
 			clock-frequency = <22118400>;
 			};
 		};
+	};
+
+	/* GPIO17 as input, pull-up (IRQ pin) */
+	fragment@2 {
+	    target = <&gpio>;
+	    __overlay__ {
+		be_iis_in_iv_irq_pin: be-iis-in-iv-irq-pin {
+		    brcm,pins = <17>;
+		    brcm,function = <0>;
+		    brcm,pull = <2>;
+		};
+	    };
 	};
 
 	__overrides__ {
