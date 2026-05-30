@@ -1,3 +1,22 @@
+// Raspberry Pi DT overlay: Microchip KSZ8851 on SPI0 (CE2)
+// IRQ: BCM GPIO12 (falling edge)
+// CE2: BCM GPIO16 (falling edge)
+// SPI must be enabled in config.txt:
+//     dtparam=spi=on
+//
+// Supported Raspberry Pi models (SPI0-based):
+//   - Raspberry Pi Zero / Zero W / Zero 2 W
+//   - Raspberry Pi 1 (A/B/B+)
+//   - Raspberry Pi 2 (v1.1 / v1.2)
+//   - Raspberry Pi 3 (3A+, 3B, 3B+)
+//   - Raspberry Pi 4 (4B, 400, CM4)
+//   - Raspberry Pi 5
+//
+// Notes:
+//   - Uses SPI0 + CE2
+//   - Uses BCM GPIO numbering
+//   - Works across bcm2835 / bcm2711 / bcm2712
+
 /dts-v1/;
 /plugin/;
 
@@ -45,3 +64,17 @@ fragment@2 {
 		speed   = <&ksz8851_iii>, "spi-max-frequency:0";
 	};
 };
+
+
+/*
+ * Brechel Electronic
+ * Industrial Interface Systems
+ *
+ * Product: BE-IIS-HPP-CAN-FD-SIC
+ *
+ * Website:
+ * https://www.be-iis.eu
+ *
+ * Digi-Key:
+ * 
+ */

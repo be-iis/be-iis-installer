@@ -1,5 +1,6 @@
-// Raspberry Pi DT overlay: Microchip LAN8651/LAN8650 on SPI0 (CE1)
+// Raspberry Pi DT overlay: Microchip MCP2518FDT on SPI0 (CE1)
 // IRQ: BCM GPIO5 (falling edge)
+// CE1: BCM GPIO7 (falling edge)
 // SPI must be enabled in config.txt:
 //     dtparam=spi=on
 //
@@ -88,3 +89,17 @@ fragment@2 {
 		osc     = <&mcp2518fd_CLK_CAN_II>, "clock-frequency:0";
 	};
 };
+
+
+/*
+ * Brechel Electronic
+ * Industrial Interface Systems
+ *
+ * Product: BE-IIS-HPP-CAN-FD-SIC
+ *
+ * Website:
+ * https://www.be-iis.eu
+ *
+ * Digi-Key:
+ * https://www.digikey.de/en/products/detail/brechel-electronic-industrial-interface-systems-be-iis/BE-IIS-HPP-CAN/29436901
+ */

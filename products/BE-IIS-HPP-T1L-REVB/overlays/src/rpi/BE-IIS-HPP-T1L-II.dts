@@ -1,15 +1,13 @@
-// Raspberry Pi DT overlay: Microchip LAN8651/LAN8650 on SPI0 (CE1)
+// Raspberry Pi DT overlay: Analog Devices ADIN1110 on SPI0 (CE1)
 // IRQ: BCM GPIO5 (falling edge)
+// CE1: BCM GPIO7 (falling edge)
 // SPI must be enabled in config.txt:
 //     dtparam=spi=on
 //
 // Supported Raspberry Pi models (SPI0-based):
-//   - Raspberry Pi Zero / Zero W / Zero 2 W
-//   - Raspberry Pi 1 (A/B/B+)
-//   - Raspberry Pi 2 (v1.1 / v1.2)
-//   - Raspberry Pi 3 (3A+, 3B, 3B+)
-//   - Raspberry Pi 4 (4B, 400, CM4)
-//   - Raspberry Pi 5
+//   - Raspberry Pi Zero 2 W (64Bit)
+//   - Raspberry Pi 4 (64Bit)
+//   - Raspberry Pi 5 (64Bit)
 //
 // Notes:
 //   - Uses SPI0 + CE1
@@ -95,3 +93,17 @@ fragment@2 {
 		cs      = <&eth2>, "reg:0";
 	};
 };
+
+
+/*
+ * Brechel Electronic
+ * Industrial Interface Systems
+ *
+ * Product: BE-IIS-HPP-CAN-FD-SIC
+ *
+ * Website:
+ * https://www.be-iis.eu
+ *
+ * Digi-Key:
+ * https://www.digikey.de/en/products/detail/brechel-electronic-industrial-interface-systems-be-iis/BE-IIS-HPP-T1L/29436903
+ */

@@ -1,3 +1,21 @@
+// Raspberry Pi DT overlay: Microchip SC16IS752 on I2C1
+// IRQ: BCM GPIO25 (active low / level low)
+// Target Address: 0x92
+//
+// Supported Raspberry Pi models (SPI0-based):
+//   - Raspberry Pi Zero / Zero W / Zero 2 W
+//   - Raspberry Pi 1 (A/B/B+)
+//   - Raspberry Pi 2 (v1.1 / v1.2)
+//   - Raspberry Pi 3 (3A+, 3B, 3B+)
+//   - Raspberry Pi 4 (4B, 400, CM4)
+//   - Raspberry Pi 5
+//
+// Notes:
+//   - Uses I2C1
+//   - Uses BCM GPIO numbering
+//   - Works across bcm2835 / bcm2711 / bcm2712
+//   - INT_N is usually active low, therefore LEVEL_LOW is used here
+
 /dts-v1/;
 /plugin/;
 
@@ -58,3 +76,16 @@
 		int_pin = <&uart3>, "interrupts:0";
 	};
 };
+
+/*
+ * Brechel Electronic
+ * Industrial Interface Systems
+ *
+ * Product: BE-IIS-HPP-CAN-FD-SIC
+ *
+ * Website:
+ * https://www.be-iis.eu
+ *
+ * Digi-Key:
+ * https://www.digikey.de/en/products/detail/brechel-electronic-industrial-interface-systems-be-iis/BE-IIS-HPP-MODBUS/29436900
+ */
