@@ -57,7 +57,7 @@
 
 				pinctrl-names = "default";
 			    	pinctrl-0 = <&be_iis_in_i_irq_pin>;
-				spi-max-frequency = <5000000>;
+				spi-max-frequency = <20000000>;
 
 				/* optional SPI CRC checking */
 				adi,spi-crc;
