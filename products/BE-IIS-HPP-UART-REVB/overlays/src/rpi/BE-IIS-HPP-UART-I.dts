@@ -34,14 +34,15 @@
 			#size-cells = <0>;
 			status = "okay";
 
-			uart3: sc16is752@49 {
+			uart3: sc16is752@4C {
 				compatible = "nxp,sc16is752";
 				reg = <0x4C>;
 
 				clocks = <&sc16is752_CLK_UART_I>;
 
+				/* Required for stable IRQ handling on Raspberry Pi 5 / RP1 */
                                 pinctrl-names = "default";
-                                pinctrl-0 = <&be_iis_is_i_irq_pin>;
+                                pinctrl-0 = <&be_iis_in_i_irq_pin>;
                                 
 				interrupt-parent = <&gpio>;
 				interrupts = <6 IRQ_TYPE_LEVEL_LOW>;

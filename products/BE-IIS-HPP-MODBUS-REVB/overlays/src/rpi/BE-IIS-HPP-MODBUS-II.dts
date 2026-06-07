@@ -1,6 +1,7 @@
 // Raspberry Pi DT overlay: Microchip SC16IS752 on I2C1
-// IRQ: BCM GPIO14 (active low / level low)
-// Target Address: 0x98
+// IRQ: BCM GPIO17
+// 7-bit I2C address: 0x49
+// 8-bit write address: 0x92
 //
 // Supported Raspberry Pi models (SPI0-based):
 //   - Raspberry Pi Zero / Zero W / Zero 2 W

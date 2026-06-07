@@ -72,4 +72,12 @@ for mod in "${modules[@]}"; do
 done
 
 echo ""
+echo "BE-IIS Applying BE-IIS serial udev integration..."
+if [ -x /usr/local/sbin/apply-beiis-serial-udev.sh ]; then
+    /usr/local/sbin/apply-beiis-serial-udev.sh || true
+else
+    echo "BE-IIS Serial udev integration script not found or not executable"
+fi
+
+echo ""
 echo "BE-IIS HAT++ system integration complete."
