@@ -40,7 +40,7 @@
                                 pinctrl-0 = <&be_iis_in_iii_irq_pin>;
                                 
 				interrupt-parent = <&gpio>;
-				interrupts = <5 IRQ_TYPE_EDGE_FALLING>;
+				interrupts = <12 IRQ_TYPE_EDGE_FALLING>;
 
 				spi-max-frequency = <20000000>;
 				status = "okay";
