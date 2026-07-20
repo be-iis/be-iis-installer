@@ -1,0 +1,18 @@
+[Unit]
+Description=CAN over TCP bridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/can-tcp-bridge/can_tcp_bridge.py 192.168.10.20 can0
+Restart=always
+RestartSec=1
+User=root
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
