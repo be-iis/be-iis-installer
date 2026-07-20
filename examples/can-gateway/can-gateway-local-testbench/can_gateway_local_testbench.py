@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-"""CAN gateway testbench for a four-Raspberry-Pi setup.
+"""Local CAN-over-TCP gateway testbench.
 
-Topology:
+The runner and responder may execute directly on the two gateway computers:
 
-    Pi 1 (master) -- CAN -- Pi 2 (gateway) == TCP == Pi 3 (gateway) -- CAN -- Pi 4 (slave)
+    Gateway A: bridge + testbench runner
+        CAN/SocketCAN -> bridge A == TCP == bridge B -> CAN/SocketCAN
+    Gateway B: bridge + testbench responder
 
-    Pi 1 (master) ........ optional WLAN control connection ........ Pi 4 (slave)
+A separate TCP control connection coordinates the tests and returns statistics.
+The actual test frames still enter and leave the gateway through SocketCAN.
 
-The control connection coordinates tests and returns statistics. Test traffic
-itself always travels over CAN and through the gateways.
-
+The same program can also be used in the original four-node topology.
 Only Python's standard library is required.
 """
 
@@ -35,7 +36,7 @@ from typing import Any, Final
 
 LOG = logging.getLogger("can-gateway-testbench")
 
-VERSION: Final = "0.1"
+VERSION: Final = "0.2"
 CONTROL_PROTOCOL_VERSION: Final = 1
 
 # Linux SocketCAN ABI.
@@ -713,7 +714,7 @@ class MasterApp:
         )
 
     async def run_forward(self) -> None:
-        LOG.info("Test 2/4: Pi 1 -> Pi 4 (%d frames)", self.args.count)
+        LOG.info("Test 2/4: runner -> responder (%d frames)", self.args.count)
         await self.control.request(
             "prepare_receive",
             session=self.session,
@@ -733,7 +734,7 @@ class MasterApp:
         log_sequence_result(result)
 
     async def run_reverse(self) -> None:
-        LOG.info("Test 3/4: Pi 4 -> Pi 1 (%d frames)", self.args.count)
+        LOG.info("Test 3/4: responder -> runner (%d frames)", self.args.count)
         recorder = SequenceRecorder(
             session=self.session,
             can_id=self.ids["reverse"],
@@ -809,14 +810,14 @@ class MasterApp:
         await self.control.connect()
         hello = await self.control.request("hello")
         if int(hello.get("control_protocol", -1)) != CONTROL_PROTOCOL_VERSION:
-            raise TestbenchError("master/slave control protocol mismatch")
+            raise TestbenchError("runner/responder control protocol mismatch")
         if int(hello.get("base_id", -1)) != self.args.base_id:
             raise TestbenchError(
-                f"base CAN ID mismatch: master=0x{self.args.base_id:X}, "
-                f"slave=0x{int(hello.get('base_id', -1)):X}"
+                f"base CAN ID mismatch: runner=0x{self.args.base_id:X}, "
+                f"responder=0x{int(hello.get('base_id', -1)):X}"
             )
         LOG.info(
-            "Connected to slave %s; remote CAN=%s; session=0x%04X",
+            "Connected to responder %s; remote CAN=%s; session=0x%04X",
             self.args.slave,
             hello.get("can_interface"),
             self.session,
@@ -840,10 +841,10 @@ class MasterApp:
             "application": "can-gateway-testbench",
             "version": VERSION,
             "created_local": time.strftime("%Y-%m-%d %H:%M:%S %z"),
-            "master_hostname": socket.gethostname(),
-            "slave_address": self.args.slave,
-            "master_can_interface": self.args.can,
-            "slave_can_interface": hello.get("can_interface"),
+            "runner_hostname": socket.gethostname(),
+            "responder_address": self.args.slave,
+            "runner_can_interface": self.args.can,
+            "responder_can_interface": hello.get("can_interface"),
             "session": self.session,
             "configuration": {
                 "base_id": self.args.base_id,
@@ -1027,10 +1028,10 @@ svg {{ width: 100%; height: auto; border: 1px solid #dadce0; border-radius: 8px;
 </head>
 <body>
 <h1>CAN Gateway Testbench <span class="status {overall_class}">{overall_text}</span></h1>
-<p class="small">Erzeugt {html.escape(str(metadata['created_local']))} · Master {html.escape(str(metadata['master_hostname']))} · Slave {html.escape(str(metadata['slave_address']))}</p>
+<p class="small">Erzeugt {html.escape(str(metadata['created_local']))} · Master {html.escape(str(metadata['runner_hostname']))} · Slave {html.escape(str(metadata['responder_address']))}</p>
 
 <h2>Konfiguration</h2>
-<p><code>{html.escape(str(metadata['master_can_interface']))}</code> ↔ Gateway ↔ Gateway ↔ <code>{html.escape(str(metadata['slave_can_interface']))}</code>, Session <code>0x{int(metadata['session']):04X}</code>, Basis-ID <code>0x{int(config['base_id']):03X}</code>, Payload {int(config['payload_length'])} Byte, CAN-FD {str(bool(config['can_fd'])).lower()}, BRS {str(bool(config['brs'])).lower()}.</p>
+<p><code>{html.escape(str(metadata['runner_can_interface']))}</code> ↔ Gateway ↔ Gateway ↔ <code>{html.escape(str(metadata['responder_can_interface']))}</code>, Session <code>0x{int(metadata['session']):04X}</code>, Basis-ID <code>0x{int(config['base_id']):03X}</code>, Payload {int(config['payload_length'])} Byte, CAN-FD {str(bool(config['can_fd'])).lower()}, BRS {str(bool(config['brs'])).lower()}.</p>
 
 <h2>Ergebnisübersicht</h2>
 <table>
@@ -1106,22 +1107,33 @@ def add_common_can_arguments(parser: argparse.ArgumentParser) -> None:
 
 def build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Testbench for a transparent CAN-over-TCP gateway pair"
+        description="Local or four-node testbench for a transparent CAN-over-TCP gateway pair"
     )
     parser.add_argument("--verbose", action="store_true", help="enable debug logging")
     subparsers = parser.add_subparsers(dest="role", required=True)
 
-    slave = subparsers.add_parser("slave", help="run on Pi 4")
+    slave = subparsers.add_parser(
+        "responder", aliases=["slave"],
+        help="run on the remote gateway/test endpoint",
+    )
+    slave.set_defaults(role_kind="slave")
     add_common_can_arguments(slave)
     slave.add_argument(
         "--control-bind",
         default="0.0.0.0",
-        help="address for WLAN control server (default: 0.0.0.0)",
+        help="address for the control server (default: 0.0.0.0)",
     )
 
-    master = subparsers.add_parser("master", help="run on Pi 1 and execute the suite")
+    master = subparsers.add_parser(
+        "run", aliases=["master"],
+        help="run the complete suite from this gateway/test endpoint",
+    )
+    master.set_defaults(role_kind="master")
     add_common_can_arguments(master)
-    master.add_argument("--slave", required=True, help="Pi 4 WLAN IP or hostname")
+    master.add_argument(
+        "--peer", "--slave", dest="slave", required=True,
+        help="responder IP address or hostname",
+    )
     master.add_argument("--count", type=int, default=5000, help="frames per stream test")
     master.add_argument("--rate", type=float, default=500.0, help="stream frames/s; 0 = unpaced")
     master.add_argument("--ping-count", type=int, default=1000, help="round-trip ping frames")
@@ -1131,7 +1143,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
         "--bidi-lead",
         type=float,
         default=0.05,
-        help="head start for Pi 4 in bidirectional test",
+        help="head start for responder in bidirectional test",
     )
     master.add_argument("--fd", action="store_true", help="send CAN-FD frames")
     master.add_argument("--brs", action="store_true", help="set CAN-FD bit-rate-switch flag")
@@ -1171,7 +1183,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
 
 def validate_arguments(args: argparse.Namespace) -> None:
     can_ids(args.base_id)
-    if args.role == "master":
+    if args.role_kind == "master":
         for name in ("count", "ping_count"):
             if getattr(args, name) <= 0:
                 raise TestbenchError(f"--{name.replace('_', '-')} must be greater than zero")
@@ -1194,7 +1206,7 @@ def validate_arguments(args: argparse.Namespace) -> None:
 
 
 async def async_main(args: argparse.Namespace) -> int:
-    if args.role == "slave":
+    if args.role_kind == "slave":
         await SlaveApp(args).run()
         return 0
     output_dir, passed = await MasterApp(args).run()

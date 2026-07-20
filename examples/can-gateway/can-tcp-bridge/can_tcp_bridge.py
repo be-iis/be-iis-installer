@@ -50,6 +50,7 @@ CANFD_FRAME_STRUCT: Final = struct.Struct("=IBBBB64s")
 
 MAGIC: Final = b"BCTP"
 PROTOCOL_VERSION: Final = 1
+APPLICATION_VERSION: Final = "0.1.1"
 MAX_PACKET_PAYLOAD: Final = 4096
 HEADER_STRUCT: Final = struct.Struct("!4sBBHI")
 HELLO_STRUCT: Final = struct.Struct("!Q")
@@ -813,10 +814,34 @@ def set_tcp_options(writer: asyncio.StreamWriter) -> None:
             sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
 
 
+def acquire_instance_lock(interface: str, port: int) -> socket.socket:
+    """Prevent multiple bridge processes from using one CAN interface/port.
+
+    A Linux abstract UNIX socket is used as a process-lifetime lock. It has no
+    filesystem permissions or stale lock file and disappears automatically when
+    the process exits.
+    """
+    safe_interface = "".join(ch if ch.isalnum() or ch in "_.-" else "_" for ch in interface)
+    lock_name = f"\0can-tcp-bridge:{safe_interface}:{port}"
+    lock_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    try:
+        lock_sock.bind(lock_name)
+    except OSError as exc:
+        lock_sock.close()
+        if exc.errno in {98, 48}:  # EADDRINUSE on Linux/macOS
+            raise RuntimeError(
+                f"another can-tcp-bridge already uses interface {interface!r} "
+                f"and port {port}; stop the old process first"
+            ) from exc
+        raise
+    return lock_sock
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Bidirectional CAN/CAN-FD bridge over one persistent TCP connection"
     )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {APPLICATION_VERSION}")
     parser.add_argument("peer", help="IPv4 address or hostname of the opposite gateway")
     parser.add_argument("interface", help="preconfigured SocketCAN interface, e.g. can0")
     parser.add_argument("--port", type=int, default=29536, help="TCP port (default: 29536)")
@@ -888,9 +913,12 @@ def validate_args(args: argparse.Namespace) -> None:
 async def async_main(args: argparse.Namespace) -> int:
     bridge = Bridge(args)
     loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        with contextlib.suppress(NotImplementedError):
-            loop.add_signal_handler(sig, lambda: asyncio.create_task(bridge.stop()))
+
+    # Leave SIGINT to asyncio.run(), which cancels the main task reliably when
+    # Ctrl-C is pressed. Handle SIGTERM explicitly for systemd/service use.
+    with contextlib.suppress(NotImplementedError):
+        loop.add_signal_handler(signal.SIGTERM, lambda: asyncio.create_task(bridge.stop()))
+
     await bridge.run()
     return 0
 
@@ -907,13 +935,23 @@ def main() -> int:
         level=getattr(logging, args.log_level),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+
+    try:
+        instance_lock = acquire_instance_lock(args.interface, args.port)
+    except (OSError, RuntimeError) as exc:
+        LOG.error("startup failed: %s", exc)
+        return 1
+
     try:
         return asyncio.run(async_main(args))
     except KeyboardInterrupt:
+        LOG.info("stopped by Ctrl-C")
         return 130
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         LOG.error("startup failed: %s", exc)
         return 1
+    finally:
+        instance_lock.close()
 
 
 if __name__ == "__main__":
