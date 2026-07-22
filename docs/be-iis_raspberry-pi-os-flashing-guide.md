@@ -81,8 +81,8 @@ Example:
 
 ```text
 sdb      32G
-├─sdb1   256M
-└─sdb2   ...
+â”œâ”€sdb1   256M
+â””â”€sdb2   ...
 ```
 
 Use the correct device, for example:
@@ -125,6 +125,11 @@ If needed, unplug and reinsert the SD card.
 
 ## Prepare first boot
 
+Raspberry Pi OS Trixie images released since late November 2025 use
+`cloud-init`. Configure the first user, hostname, SSH password login, and SSH
+key in the `user-data` file. The older `userconf.txt` and `hostname` files are
+not used by this guide.
+
 ### 5. Mount the boot partition
 
 ```bash
@@ -132,41 +137,97 @@ sudo mkdir -p /mnt/rpi-boot
 sudo mount /dev/sdb1 /mnt/rpi-boot
 ```
 
-### 6. Enable SSH
+### 6. Configure hostname, user, password, and SSH
+
+The following block starts in the mounted boot directory. Change
+`PI_HOSTNAME` and `PI_USERNAME` before running it.
+
+The SSH key is generated only if it does not already exist. The same key file
+can therefore be reused for every Raspberry Pi prepared on this computer.
+
+Copy and paste the complete block:
 
 ```bash
-sudo touch /mnt/rpi-boot/ssh
+cd /mnt/rpi-boot
+
+PI_HOSTNAME="pi2"
+PI_USERNAME="philipp"
+SSH_KEY_FILE="$HOME/.ssh/id_ed25519_be_iis_pis"
+
+mkdir -p "$HOME/.ssh"
+chmod 700 "$HOME/.ssh"
+
+if [[ ! -f "$SSH_KEY_FILE" ]]; then
+    ssh-keygen -t ed25519 \
+        -f "$SSH_KEY_FILE" \
+        -N "" \
+        -C "be-iis-pis"
+fi
+
+chmod 600 "$SSH_KEY_FILE"
+chmod 644 "${SSH_KEY_FILE}.pub"
+
+while true; do
+    read -rsp "Password for ${PI_USERNAME}: " PI_PASSWORD
+    echo
+    read -rsp "Repeat password: " PI_PASSWORD_REPEAT
+    echo
+    [[ "$PI_PASSWORD" == "$PI_PASSWORD_REPEAT" ]] && break
+    unset PI_PASSWORD PI_PASSWORD_REPEAT
+    echo "Passwords do not match. Please try again." >&2
+done
+
+PASSWORD_HASH="$(printf '%s' "$PI_PASSWORD" | openssl passwd -6 -stdin)"
+SSH_PUBLIC_KEY="$(cat "${SSH_KEY_FILE}.pub")"
+unset PI_PASSWORD PI_PASSWORD_REPEAT
+
+sudo tee user-data >/dev/null <<EOF
+#cloud-config
+hostname: ${PI_HOSTNAME}
+manage_etc_hosts: true
+
+users:
+  - name: ${PI_USERNAME}
+    shell: /bin/bash
+    groups:
+      - adm
+      - sudo
+    lock_passwd: false
+    hashed_passwd: '${PASSWORD_HASH}'
+    sudo:
+      - ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${SSH_PUBLIC_KEY}
+
+ssh_pwauth: true
+enable_ssh: true
+disable_root: true
+
+chpasswd:
+  expire: false
+EOF
+
+sudo touch ssh
+sudo rm -f userconf userconf.txt hostname
+sync
+
+unset PASSWORD_HASH SSH_PUBLIC_KEY
+echo "Prepared ${PI_USERNAME}@${PI_HOSTNAME}.local"
 ```
 
-### 7. Create the user
+The private key remains on the setup computer:
 
-Recent Raspberry Pi OS images require a user to be created before first boot.
-
-```bash
-echo "<username>:$(openssl passwd -6 '<password>')" | sudo tee /mnt/rpi-boot/userconf.txt
+```text
+~/.ssh/id_ed25519_be_iis_pis
 ```
 
-Replace:
+Keep this private key secure and back it up. Anyone who obtains it can access
+all Raspberry Pis configured with its public key.
 
-- `<username>` with your username
-- `<password>` with your password
-
-
-### 8. Set hostname
-
-This allows the device to be found easily in the network (e.g. via pi5.local).
+### 7. Unmount the boot partition
 
 ```bash
-echo "pi5" | sudo tee /mnt/rpi-boot/hostname
-```
-
-Replace:
-
-- pi5 with your hostname
-
-### 9. Unmount the boot partition
-
-```bash
+cd ~
 sudo umount /mnt/rpi-boot
 sync
 ```
@@ -175,56 +236,60 @@ sync
 
 ## First boot and login
 
-### 9. Start the Raspberry Pi
+### 8. Start the Raspberry Pi
 
 - Insert the SD card
 - Connect Ethernet
 - Power on the Raspberry Pi
 
-### 10. Connect to the Raspberry Pi
+### 9. Connect to the Raspberry Pi
 
-Try:
-
-```bash
-ping raspberrypi.local
-```
-
-or directly:
+Replace the hostname and username if you selected different values:
 
 ```bash
-ssh <username>@raspberrypi.local
+ping pi2.local
 ```
 
-### 11. First login
+Connect using the shared BE-IIS Pi key:
 
 ```bash
-ssh <username>@raspberrypi.local
+ssh -i ~/.ssh/id_ed25519_be_iis_pis philipp@pi2.local
 ```
+
+Password login is also enabled as a fallback:
+
+```bash
+ssh -o PubkeyAuthentication=no \
+    -o PreferredAuthentications=password \
+    philipp@pi2.local
+```
+
+If `.local` name resolution is not available, use the Pi's IP address instead.
 
 ---
 
 ## Initial setup on the Raspberry Pi
 
-### 12. (Optional) Update the system ⚠️
+### 10. (Optional) Update the system âš ï¸
 
 ```bash
 sudo apt update
 sudo apt upgrade -y
 ```
 
-⚠️ Important: Reboot required after upgrade
+âš ï¸ Important: Reboot required after upgrade
 If a kernel update was installed, you must reboot before continuing:
 ```bash
 sudo reboot
 ```
-📌 Note
+ðŸ“Œ Note
 Skipping the reboot may lead to:
 
 Kernel module build failures
 Missing or mismatched headers
 Installer errors in BE-IIS scripts
 
-### 13. Install Git
+### 11. Install Git
 
 ```bash
 sudo apt install -y git
@@ -234,13 +299,13 @@ sudo apt install -y git
 
 ## Install BE-IIS
 
-### 14. Clone the repository
+### 12. Clone the repository
 
 ```bash
 git clone https://github.com/be-iis/be-iis-installer.git
 ```
 
-### 15. Run the installer
+### 13. Run the installer
 
 ```bash
 cd be-iis-installer
@@ -252,3 +317,4 @@ cd be-iis-installer
 ## Done
 
 The Raspberry Pi is now prepared and the BE-IIS installer has been executed.
+
