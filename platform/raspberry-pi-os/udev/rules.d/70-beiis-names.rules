@@ -12,10 +12,13 @@ SUBSYSTEM=="net", ACTION=="add", DRIVERS=="ks8851", KERNELS=="spi0.0", NAME="bei
 SUBSYSTEM=="net", ACTION=="add", DRIVERS=="ks8851", KERNELS=="spi0.1", NAME="beiis-lan1"
 SUBSYSTEM=="net", ACTION=="add", DRIVERS=="ks8851", KERNELS=="spi0.2", NAME="beiis-lan2"
 
-# --- 10BASE-T1L (ADIN1110) ---
-SUBSYSTEM=="net", ACTION=="add", DRIVERS=="adin1110", KERNELS=="spi0.0", NAME="beiis-t1l0"
-SUBSYSTEM=="net", ACTION=="add", DRIVERS=="adin1110", KERNELS=="spi0.1", NAME="beiis-t1l1"
-SUBSYSTEM=="net", ACTION=="add", DRIVERS=="adin1110", KERNELS=="spi0.2", NAME="beiis-t1l2"
+# --- 10BASE-T1L / ADIN2111 on SPI0 CE0 ---
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="adin1110", KERNELS=="spi0.0", ATTR{phys_port_name}=="p0", NAME="beiis-t1l0"
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="adin1110", KERNELS=="spi0.0", ATTR{phys_port_name}=="p1", NAME="beiis-t1l3"
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="adin1110", KERNELS=="spi0.1", ATTR{phys_port_name}=="p0", NAME="beiis-t1l1"
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="adin1110", KERNELS=="spi0.1", ATTR{phys_port_name}=="p1", NAME="beiis-t1l4"
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="adin1110", KERNELS=="spi0.2", ATTR{phys_port_name}=="p0", NAME="beiis-t1l2"
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="adin1110", KERNELS=="spi0.2", ATTR{phys_port_name}=="p1", NAME="beiis-t1l5"
 
 # --- CAN FD (MCP2518FD) ---
 SUBSYSTEM=="net", ACTION=="add", DRIVERS=="mcp251xfd", KERNELS=="spi0.0", NAME="beiis-can0"

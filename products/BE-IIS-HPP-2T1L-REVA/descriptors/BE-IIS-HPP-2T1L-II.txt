@@ -1,0 +1,7 @@
+product_uuid 10325476-98ba-dcfe-1122-334455667788
+product_id 0x0001
+product_ver 0x0001
+vendor "Brechel"
+product "BE-IIS-HPP-2T1L-II_v0"
+dt_blob "BE-IIS-HPP-2T1L-II"
+current_supply 200

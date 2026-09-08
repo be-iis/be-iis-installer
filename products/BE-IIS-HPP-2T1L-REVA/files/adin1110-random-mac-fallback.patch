@@ -1,0 +1,15 @@
+--- adin1110.c.orig	2026-05-14 22:12:49.741705541 +0100
++++ adin1110.c	2026-05-14 22:13:42.025541121 +0100
+@@ -1590,8 +1590,10 @@
+ 		SET_NETDEV_DEV(netdev, dev);
+ 
+ 		ret = device_get_ethdev_address(dev, netdev);
+-		if (ret < 0)
+-			return ret;
++		if (ret < 0) {
++			eth_hw_addr_random(netdev);
++			dev_warn(dev, "No MAC address configured, using random MAC address %pM\n",netdev->dev_addr);
++		}
+ 
+ 		netdev->irq = priv->spidev->irq;
+ 		INIT_WORK(&port_priv->tx_work, adin1110_tx_work);

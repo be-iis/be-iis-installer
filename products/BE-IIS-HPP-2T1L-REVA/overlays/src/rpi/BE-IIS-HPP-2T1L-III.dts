@@ -1,0 +1,87 @@
+// Raspberry Pi DT overlay: Analog Devices ADIN2111 on SPI0 (CE2)
+// IRQ: BCM GPIO12 (falling edge)
+// CE2: BCM GPIO16 (falling edge)
+// SPI must be enabled in config.txt:
+//     dtparam=spi=on
+//
+// Supported Raspberry Pi models (SPI0-based):
+//   - Raspberry Pi Zero 2 W (64Bit)
+//   - Raspberry Pi 4 (64Bit)
+//   - Raspberry Pi 5 (64Bit)
+//
+// Notes:
+//   - Uses SPI0 + CE2
+//   - Uses BCM GPIO numbering
+//   - Works across bcm2835 / bcm2711 / bcm2712
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/ {
+	compatible = "brcm,bcm2835", "brcm,bcm2711", "brcm,bcm2712";
+
+	fragment@0 {
+		target = <&spi0>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			eth3: ethernet@2 {
+				compatible = "adi,adin2111";
+				reg = <2>;
+
+                                pinctrl-names = "default";
+                                pinctrl-0 = <&be_iis_in_iii_irq_pin>;
+                                
+				interrupt-parent = <&gpio>;
+				interrupts = <12 IRQ_TYPE_LEVEL_LOW>;
+		
+				/* optional: set a fixed MAC (better: let it be set by userspace)
+				mac-address = [ 02 00 00 00 00 03 ];*/
+				
+				/* optional SPI CRC checking */
+				adi,spi-crc;
+
+				spi-max-frequency = <24500000>;
+				
+				#address-cells = <1>;
+				#size-cells = <0>;
+				status = "okay";
+			};
+		};
+	};
+
+/* GPIO12 as input, pull-up (IRQ pin) */
+fragment@2 {
+    target = <&gpio>;
+    __overlay__ {
+        be_iis_in_iii_irq_pin: be-iis-in-iii-irq-pin {
+            brcm,pins = <12>;
+            brcm,function = <0>;
+            brcm,pull = <2>;
+        };
+    };
+};
+
+	__overrides__ {
+		int_pin = <&eth3>, "interrupts:0";
+		speed   = <&eth3>, "spi-max-frequency:0";
+	};
+};
+
+
+/*
+ * Brechel Electronic
+ * Industrial Interface Systems
+ *
+ * Product: BE-IIS-HPP-2T1L-REVA
+ *
+ * Website:
+ * https://www.be-iis.eu
+ *
+ * Digi-Key:
+ * https://www.be-iis.eu
+ */
