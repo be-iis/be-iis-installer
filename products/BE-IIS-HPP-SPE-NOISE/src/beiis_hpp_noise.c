@@ -57,7 +57,7 @@ static DEVICE_ATTR_RW(generator);
 
 #define BOOL_ATTR(_name, _member, _write) \
 static ssize_t _name##_show(struct device *d, struct device_attribute *a, char *b) \
-{ struct beiis_noise *n=i2c_get_clientdata(to_i2c_client(d)); return sysfs_emit(b, "%u\\n", n->_member); } \
+{ struct beiis_noise *n=i2c_get_clientdata(to_i2c_client(d)); return sysfs_emit(b, "%u\n", n->_member); } \
 static ssize_t _name##_store(struct device *d, struct device_attribute *a, const char *b, size_t c) \
 { struct beiis_noise *n=i2c_get_clientdata(to_i2c_client(d)); bool v; int r=kstrtobool(b,&v); if(r) return r; mutex_lock(&n->lock); n->_member=v; r=_write(n); mutex_unlock(&n->lock); return r ? r : c; } \
 static DEVICE_ATTR_RW(_name)
@@ -67,7 +67,7 @@ BOOL_ATTR(fm_enable, fm_enable, write_dds_control);
 
 #define UINT_ATTR(_name, _member, _max, _reg) \
 static ssize_t _name##_show(struct device *d, struct device_attribute *a, char *b) \
-{ struct beiis_noise *n=i2c_get_clientdata(to_i2c_client(d)); return sysfs_emit(b, "%u\\n", n->_member); } \
+{ struct beiis_noise *n=i2c_get_clientdata(to_i2c_client(d)); return sysfs_emit(b, "%u\n", n->_member); } \
 static ssize_t _name##_store(struct device *d, struct device_attribute *a, const char *b, size_t c) \
 { struct beiis_noise *n=i2c_get_clientdata(to_i2c_client(d)); unsigned int v; int r=kstrtouint(b,0,&v); if(r || v > _max) return -EINVAL; mutex_lock(&n->lock); r=write_reg(n,_reg,v); if(!r) n->_member=v; mutex_unlock(&n->lock); return r ? r : c; } \
 static DEVICE_ATTR_RW(_name)
