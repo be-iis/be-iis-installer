@@ -1,18 +1,50 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /dts-v1/;
 /plugin/;
+
 / {
-	compatible = "brcm,bcm2835";
+	compatible = "brcm,bcm2835", "brcm,bcm2711", "brcm,bcm2712";
+
+	/* HAT++ user I2C bus: FPGA noise-generator instance. */
 	fragment@0 {
 		target = <&i2c1>;
 		__overlay__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "okay";
+
 			noise_i: noise-generator@2a {
 				compatible = "be-iis,hpp-spe-noise";
 				reg = <0x2a>;
 				status = "okay";
+			};
+		};
+	};
+
+	/* HAT++ descriptor EEPROMs on the ID bus. */
+	fragment@1 {
+		target = <&i2c0>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			ee50: eeprom@50 { compatible = "atmel,24c32"; reg = <0x50>; status = "okay"; };
+			ee60: eeprom@60 { compatible = "atmel,24c32"; reg = <0x60>; status = "okay"; };
+			ee70: eeprom@70 { compatible = "atmel,24c32"; reg = <0x70>; status = "okay"; };
+			ee74: eeprom@74 { compatible = "atmel,24c32"; reg = <0x74>; status = "okay"; };
+			ee76: eeprom@76 { compatible = "atmel,24c32"; reg = <0x76>; status = "okay"; };
+		};
+	};
+
+	/* HAT++ power-on-reset: release the stacked HATs. */
+	fragment@2 {
+		target = <&gpio>;
+		__overlay__ {
+			be_iis_porst: be-iis-porst {
+				gpio-hog;
+				gpios = <13 0>;
+				output-high;
+				line-name = "BE-IIS-Power-on-reset";
 			};
 		};
 	};
