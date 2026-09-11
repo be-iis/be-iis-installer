@@ -5,7 +5,7 @@
 / {
 	compatible = "brcm,bcm2835", "brcm,bcm2711", "brcm,bcm2712";
 
-	/* HAT++ user I2C bus: FPGA noise-generator instance. */
+	/* HAT++ instance III: the shared base resources belong to instance I. */
 	fragment@0 {
 		target = <&i2c1>;
 		__overlay__ {
@@ -17,51 +17,6 @@
 				compatible = "be-iis,hpp-spe-noise";
 				reg = <0x28>;
 				status = "okay";
-			};
-		};
-	};
-
-	/* HAT++ shared SPI0 fabric: reserve CE0, CE1 and CE2 for stacked HATs. */
-	fragment@1 {
-		target = <&spi0>;
-		__overlay__ {
-			#address-cells = <1>;
-			#size-cells = <0>;
-			status = "okay";
-			num-cs = <3>;
-			cs-gpios = <&gpio 8 1>, <&gpio 7 1>, <&gpio 16 1>;
-		};
-	};
-
-	/* CE0 and CE1 are HAT++ resources, not Linux spidev devices. */
-	fragment@2 { target = <&spidev0>; __overlay__ { status = "disabled"; }; };
-	fragment@3 { target = <&spidev1>; __overlay__ { status = "disabled"; }; };
-
-	/* HAT++ descriptor EEPROMs on the ID bus. */
-	fragment@9 {
-		target = <&i2c0>;
-		__overlay__ {
-			#address-cells = <1>;
-			#size-cells = <0>;
-			clock-frequency = <1000000>;
-
-			ee50: eeprom@50 { compatible = "atmel,24c32"; reg = <0x50>; status = "okay"; };
-			ee60: eeprom@60 { compatible = "atmel,24c32"; reg = <0x60>; status = "okay"; };
-			ee70: eeprom@70 { compatible = "atmel,24c32"; reg = <0x70>; status = "okay"; };
-			ee74: eeprom@74 { compatible = "atmel,24c32"; reg = <0x74>; status = "okay"; };
-			ee76: eeprom@76 { compatible = "atmel,24c32"; reg = <0x76>; status = "okay"; };
-		};
-	};
-
-	/* HAT++ power-on-reset: release the stacked HATs. */
-	fragment@10 {
-		target = <&gpio>;
-		__overlay__ {
-			be_iis_porst: be-iis-porst {
-				gpio-hog;
-				gpios = <13 0>;
-				output-high;
-				line-name = "BE-IIS-Power-on-reset";
 			};
 		};
 	};
