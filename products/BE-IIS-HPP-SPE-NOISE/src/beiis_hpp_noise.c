@@ -74,12 +74,12 @@ static DEVICE_ATTR_RW(_name)
 UINT_ATTR(amplitude, amplitude, 255, REG_DIF_GAIN);
 UINT_ATTR(pwm_reference, pwm_reference, 1023, REG_REF_PWM);
 
-static struct attribute *attrs[] = {
+static struct attribute *beiis_noise_attrs[] = {
 	&dev_attr_generator.attr, &dev_attr_output_enable.attr,
 	&dev_attr_amplitude.attr, &dev_attr_pwm_reference.attr,
 	&dev_attr_dds_enable.attr, &dev_attr_fm_enable.attr, NULL,
 };
-ATTRIBUTE_GROUPS(attrs);
+ATTRIBUTE_GROUPS(beiis_noise);
 
 static int beiis_noise_probe(struct i2c_client *client)
 {
@@ -95,11 +95,11 @@ static const struct of_device_id match[] = {
 	{ .compatible = "be-iis,hpp-spe-noise" }, { }
 };
 MODULE_DEVICE_TABLE(of, match);
-static struct i2c_driver driver = {
-	.driver = { .name = "beiis-hpp-spe-noise", .of_match_table = match, .dev_groups = attrs_groups },
+static struct i2c_driver beiis_noise_driver = {
+	.driver = { .name = "beiis-hpp-spe-noise", .of_match_table = match, .dev_groups = beiis_noise_groups },
 	.probe = beiis_noise_probe,
 };
-module_i2c_driver(driver);
+module_i2c_driver(beiis_noise_driver);
 MODULE_AUTHOR("Brechel Electronic");
 MODULE_DESCRIPTION("BE-IIS HPP SPE NOISE control driver");
 MODULE_LICENSE("GPL");
