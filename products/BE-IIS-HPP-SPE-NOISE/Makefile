@@ -1,13 +1,13 @@
 obj-m += beiis_hpp_noise.o
 KDIR ?= /lib/modules/$(shell uname -r)/build
 DTC ?= dtc
-OVERLAY := overlay/beiis-hpp-spe-noise.dtbo
+OVERLAY := overlays/beiis-hpp-spe-noise.dtbo
 .PHONY: all module overlay clean install
 all: module overlay
 module:
 	$(MAKE) -C $(KDIR) M=$(CURDIR)/src modules
 overlay: $(OVERLAY)
-$(OVERLAY): overlay/beiis-hpp-spe-noise-overlay.dts
+$(OVERLAY): overlays/beiis-hpp-spe-noise-overlay.dts
 	$(DTC) -@ -I dts -O dtb -o $@ $<
 install: all
 	$(MAKE) -C $(KDIR) M=$(CURDIR)/src modules_install
