@@ -1,2 +1,16 @@
 
 /build/
+
+
+# External kernel-module build output
+*.ko
+*.o
+*.mod
+*.mod.c
+*.cmd
+Module.symvers
+modules.order
+
+# Generated Device-Tree overlays
+*.dtbo
+*.tmp.dts
