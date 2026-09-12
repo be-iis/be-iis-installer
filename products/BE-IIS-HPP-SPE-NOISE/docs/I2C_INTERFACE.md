@@ -1,47 +1,34 @@
-# Proposed I2C control interface
+# I2C control interface
 
-## Recommended architecture
+The FPGA is a 7-bit I2C slave with a 16-bit big-endian register address and
+16-bit big-endian data.
 
-Use the FPGA as a standard **7-bit I2C slave** and access it through Linux
-`i2c-dev`. This is the smallest and most transparent solution: no Device Tree
-overlay and no kernel driver are needed to read or write the control registers.
+## Address straps
 
-The Raspberry Pi is the only I2C master. The FPGA must implement open-drain
-SDA behaviour (never drive a logic high), acknowledge its exact 7-bit address,
-and be released from reset before the first START condition.
+| A1 | A0 | Address |
+|:-:|:-:|:--|
+| 0 | 0 | 0x2a |
+| 0 | 1 | 0x2b |
+| 1 | 0 | 0x2c |
+| 1 | 1 | 0x2d |
 
-## Provisional register map
+A0 is MachXO2 PL2A / package pin 1; A1 is PL2B / package pin 2.
 
-| Register | Name | Access | Meaning |
+## Registers
+
+| Register | Name | Access | Value |
 |---:|---|---|---|
-| `0x00` | `DEVICE_ID` | R | fixed value `0x4E` (`N`) |
-| `0x01` | `VERSION` | R | FPGA interface version |
-| `0x02` | `CONTROL` | R/W | bit 0: output enable; bit 1: generator enable |
-| `0x03` | `MODE` | R/W | noise / pattern selection |
-| `0x04..0x05` | `AMPLITUDE` | R/W | unsigned amplitude word |
-| `0x06..0x07` | `SEED` | R/W | pseudo-random seed |
-| `0x08` | `STATUS` | R | lock, fault and active flags |
+| 0x0000 | CONTROL | W | generator select and output enable |
+| 0x0001 | DIF_GAIN | W | output amplitude, 0..255 |
+| 0x0003 | REF_PWM | W | PWM reference, 0..1023 |
+| 0x0004 | COMPONENT_ID | R | 0x4e47 ("NG") |
+| 0x0005 | FIRMWARE_ID | R | 0x0001 |
+| 0x0300 | DDS_CONTROL | W | DDS/FM enable |
+| 0x0301..06 | DDS/FM | W | phase step, amplitude and FM settings |
 
-The final slave address should be documented after confirming the FPGA address
-decoder. `0x2A` is reserved here only as a test placeholder.
-
-## Probe sequence
+Read a 16-bit value with a register-address write followed by a read:
 
 ```sh
-# Scan only the expected address first; this avoids confusing unrelated HATs.
-sudo i2cdetect -y 1 0x2a 0x2a
-
-# Read DEVICE_ID from register 0x00.
-sudo i2ctransfer -f -y 1 w1@0x2a 0x00 r1
-
-# Read interface version from register 0x01.
-sudo i2ctransfer -f -y 1 w1@0x2a 0x01 r1
+sudo i2ctransfer -f -y 1 w2@0x2a 0x00 0x04 r2
+sudo i2ctransfer -f -y 1 w2@0x2a 0x00 0x05 r2
 ```
-
-## EEPROM option
-
-An I2C EEPROM is useful only for persistent defaults, a serial number,
-calibration values or a Raspberry Pi HAT EEPROM. It is **not** a replacement
-for the FPGA I2C slave when parameters must change while the generator is
-running. A good later design can contain both: FPGA registers for live control
-and EEPROM for boot defaults.
