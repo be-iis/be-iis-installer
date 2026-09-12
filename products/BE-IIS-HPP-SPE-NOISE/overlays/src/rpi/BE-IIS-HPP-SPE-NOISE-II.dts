@@ -13,9 +13,9 @@
 			#size-cells = <0>;
 			status = "okay";
 
-			noise_ii: noise-generator@29 {
+			noise_ii: noise-generator@2b {
 				compatible = "be-iis,hpp-spe-noise";
-				reg = <0x29>;
+				reg = <0x2b>;
 				status = "okay";
 			};
 		};
