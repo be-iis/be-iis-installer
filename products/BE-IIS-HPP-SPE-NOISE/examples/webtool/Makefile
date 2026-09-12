@@ -5,7 +5,7 @@ SERVICE ?= beiis-noise-webtool.service
 .PHONY: run install enable disable status
 
 run:
-	$(PYTHON) noise_webtool.py
+	sudo $(PYTHON) noise_webtool.py
 
 install:
 	sudo install -d -m 0755 $(INSTALL_DIR)

@@ -1,9 +1,10 @@
 # BE-IIS HPP SPE Noise Generator Webtool
 
-Local browser control for the noise-generator output and update-rate divider.
+Local browser control for the noise-generator kernel driver.
 
-The tool uses I2C bus 1, target address `0x2a`, register `0x01` for output
-control and register `0x02` for the rate divider.
+It uses the driver's sysfs interface at `/sys/bus/i2c/devices/1-002a` and
+therefore does not access I2C directly. The page controls generator selection,
+output enable, amplitude, PWM reference, DDS and FM.
 
 ## Start manually
 
