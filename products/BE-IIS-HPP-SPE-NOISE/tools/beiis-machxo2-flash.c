@@ -33,7 +33,8 @@ static uint8_t *load_jed(const char *name, size_t *len) {
  FILE *f=fopen(name,"r"); char *s=NULL,*p,*e; long qf=-1; size_t n=0; uint8_t *out;
  if(!f){perror(name);exit(1);} fseek(f,0,SEEK_END); n=(size_t)ftell(f); rewind(f);
  s=calloc(n+1,1); if(!s || fread(s,1,n,f)!=n){perror("read JED");exit(1);} fclose(f);
- p=strstr(s,"QF"); if(!p || sscanf(p+2,"%ld",&qf)!=1 || qf<=0){fprintf(stderr,"invalid JEDEC QF record\n");exit(1);}
+ for(p=s; p && *p; ) { if((p==s || p[-1]=='\n') && p[0]=='Q' && p[1]=='F') break; p=strchr(p,'\n'); if(p) p++; }
+ if(!p || sscanf(p+2,"%ld",&qf)!=1 || qf<=0){fprintf(stderr,"invalid JEDEC QF record\n");exit(1);}
  if(qf%128){fprintf(stderr,"JEDEC fuse map is not page aligned\n");exit(1);} *len=(size_t)qf/8;
  out=calloc(*len,1); if(!out){perror("calloc");exit(1);}
  for(p=s;(p=strchr(p,'L'));p++) { long a; char *d=p+1; if(sscanf(d,"%ld",&a)!=1 || a<0) continue; while(*d>='0'&&*d<='9') d++; while(*d==' '||*d=='\t'||*d=='\r'||*d=='\n') d++; for(e=d;*e=='0'||*e=='1';e++,a++) { if((size_t)a>=*len*8){fprintf(stderr,"JEDEC L record out of range\n");exit(1);} if(*e=='1') out[a/8]|=(uint8_t)(1u<<(a%8)); } }
