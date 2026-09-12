@@ -2,7 +2,7 @@
 
 Local browser control for the noise-generator output and update-rate divider.
 
-The tool uses I2C bus 1, target address `0x42`, register `0x01` for output
+The tool uses I2C bus 1, target address `0x2a`, register `0x01` for output
 control and register `0x02` for the rate divider.
 
 ## Start manually
@@ -11,8 +11,7 @@ control and register `0x02` for the rate divider.
 make run
 ```
 
-Open <http://127.0.0.1:8080> on the Raspberry Pi. The server deliberately
-binds to localhost only.
+Open <http://PI-IP:8080> from a device on the same local network.
 
 ## Start at boot
 

@@ -9,7 +9,7 @@ import subprocess
 import urllib.parse
 
 I2C_BUS = 1
-I2C_ADDRESS = 0x42
+I2C_ADDRESS = 0x2A
 REG_CTRL = 0x01
 REG_RATE_DIVIDER = 0x02
 
@@ -94,7 +94,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--host", default="127.0.0.1", help="bind address (default: localhost only)")
+    parser.add_argument("--host", default="0.0.0.0", help="bind address (default: all network interfaces)")
     parser.add_argument("--port", type=int, default=8080, help="TCP port (default: 8080)")
     args = parser.parse_args()
     print(f"Noise Generator webtool: http://{args.host}:{args.port}")
