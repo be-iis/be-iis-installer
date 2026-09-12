@@ -40,6 +40,18 @@
 		};
 	};
 
+	/* Linux FPGA region for the MachXO2 at SPI0 CE0. */
+	fragment@4 {
+		target-path = "/";
+		__overlay__ {
+			fpga_region: fpga-region {
+				compatible = "fpga-region";
+				fpga-mgr = <&fpga_i>;
+				status = "okay";
+			};
+		};
+	};
+
 	/* CE0 is the MachXO2 Slave-SPI FPGA manager; CE1 remains reserved. */
 	fragment@2 { target = <&spidev0>; __overlay__ { status = "disabled"; }; };
 	fragment@3 { target = <&spidev1>; __overlay__ { status = "disabled"; }; };
