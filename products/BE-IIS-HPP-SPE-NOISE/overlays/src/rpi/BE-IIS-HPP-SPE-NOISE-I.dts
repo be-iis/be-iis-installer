@@ -32,7 +32,7 @@
 			cs-gpios = <&gpio 8 1>, <&gpio 7 1>, <&gpio 16 1>;
 
 			fpga_i: fpga@0 {
-				compatible = "spidev";
+				compatible = "lattice,machxo2-slave-spi";
 				reg = <0>;
 				spi-max-frequency = <1000000>;
 				status = "okay";
@@ -40,7 +40,7 @@
 		};
 	};
 
-	/* CE0 is exposed as spidev for the MachXO2 Slave-SPI updater; CE1 remains reserved. */
+	/* CE0 is the MachXO2 Slave-SPI FPGA manager; CE1 remains reserved. */
 	fragment@2 { target = <&spidev0>; __overlay__ { status = "disabled"; }; };
 	fragment@3 { target = <&spidev1>; __overlay__ { status = "disabled"; }; };
 
