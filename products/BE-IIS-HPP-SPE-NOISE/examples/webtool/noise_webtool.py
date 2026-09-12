@@ -31,8 +31,8 @@ def write_settings(values):
             if not isinstance(value, int) or not 0 <= value <= 255:
                 raise ValueError("Amplitude must be 0..255")
         elif field == "pwm_reference":
-            if not isinstance(value, int) or not 0 <= value <= 1023:
-                raise ValueError("Hardware gain must be 0..1023")
+            if not isinstance(value, int) or not 0 <= value <= 255:
+                raise ValueError("Hardware gain must be 0..255")
         else:
             raise ValueError(f"Unsupported setting: {field}")
         (SYSFS / field).write_text(f"{value}\n")
@@ -52,7 +52,7 @@ label{display:block;margin:.8rem 0 .25rem}input[type=range]{width:100%}select,in
 <label class="check"><input id="output_enable" type="checkbox" onchange="setBool('output_enable',this)">Enable output</label>
 <label>Software gain / amplitude: <strong id="amplitude_value">0</strong><input id="amplitude" type="range" min="0" max="255" onchange="setNumber('amplitude',this)"></label>
 <small>The LEDs display the software-amplitude value.</small>
-<label>Hardware gain (PWM reference)<input id="pwm_reference" type="number" min="0" max="1023" onchange="setNumber('pwm_reference',this)"></label>
+<label>Hardware gain (PWM reference)<input id="pwm_reference" type="number" min="0" max="255" onchange="setNumber('pwm_reference',this)"></label>
 </div>
 <div class="card"><h2>DDS / FM</h2>
 <label class="check"><input id="dds_enable" type="checkbox" onchange="setBool('dds_enable',this)">Enable DDS</label>

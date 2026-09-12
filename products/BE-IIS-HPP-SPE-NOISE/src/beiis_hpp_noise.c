@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 #include <linux/bitops.h>
+#include <linux/bitfield.h>
 #include <linux/device.h>
 #include <linux/i2c.h>
 #include <linux/kernel.h>
@@ -8,96 +9,60 @@
 #include <linux/slab.h>
 
 #define REG_CONTROL       0x0000
-#define REG_DIF_GAIN      0x0001
-#define REG_REF_PWM       0x0003
+#define REG_AMPLITUDE     0x0001
+#define REG_PWM_REFERENCE 0x0003
 #define REG_COMPONENT_ID  0x0004
 #define REG_FIRMWARE_ID   0x0005
-#define REG_DDS_CONTROL   0x0300
-
 #define COMPONENT_ID_NOISE_GENERATOR 0x4e47 /* "NG" */
+
+#define CONTROL_OUTPUT_ENABLE BIT(0)
+#define CONTROL_GENERATOR     GENMASK(2, 1)
+#define CONTROL_DDS_ENABLE    BIT(3)
+#define CONTROL_FM_ENABLE     BIT(4)
 
 struct beiis_noise {
 	struct i2c_client *client;
 	struct mutex lock;
-	u8 generator, amplitude;
-	bool output_enable, dds_enable, fm_enable;
-	u16 pwm_reference;
 };
 
-static int read_reg(struct beiis_noise *n, u16 reg, u16 *value)
+static int beiis_noise_read_reg(struct i2c_client *client,
+				u16 reg, u16 *value)
 {
-	u8 address[] = { reg >> 8, reg };
+	u8 addr[2] = { reg >> 8, reg & 0xff };
 	u8 data[2];
-	struct i2c_msg messages[] = {
+	struct i2c_msg msgs[] = {
 		{
-			.addr = n->client->addr,
+			.addr = client->addr,
 			.flags = 0,
-			.len = sizeof(address),
-			.buf = address,
+			.len = sizeof(addr),
+			.buf = addr,
 		},
 		{
-			.addr = n->client->addr,
+			.addr = client->addr,
 			.flags = I2C_M_RD,
 			.len = sizeof(data),
 			.buf = data,
 		},
 	};
-	int ret;
+	int ret = i2c_transfer(client->adapter, msgs, ARRAY_SIZE(msgs));
 
-	ret = i2c_transfer(n->client->adapter, messages, ARRAY_SIZE(messages));
-	if (ret == ARRAY_SIZE(messages)) {
-		*value = ((u16)data[0] << 8) | data[1];
-		return 0;
-	}
+	if (ret != ARRAY_SIZE(msgs))
+		return ret < 0 ? ret : -EIO;
 
-	return ret < 0 ? ret : -EIO;
+	*value = ((u16)data[0] << 8) | data[1];
+	return 0;
 }
 
-static int write_reg(struct beiis_noise *n, u16 reg, u16 value)
+static int beiis_noise_write_reg(struct i2c_client *client,
+				 u16 reg, u16 value)
 {
-	u8 data[] = { reg >> 8, reg, value >> 8, value };
-	int ret = i2c_master_send(n->client, data, sizeof(data));
+	u8 data[4] = {
+		reg >> 8, reg & 0xff,
+		value >> 8, value & 0xff,
+	};
+	int ret = i2c_master_send(client, data, sizeof(data));
 
 	return ret == sizeof(data) ? 0 : ret < 0 ? ret : -EIO;
-}
-
-static int read_control(struct beiis_noise *n)
-{
-	u16 value;
-	int ret = read_reg(n, REG_CONTROL, &value);
-
-	if (!ret) {
-		n->generator = value & GENMASK(1, 0);
-		n->output_enable = !!(value & BIT(3));
-	}
-
-	return ret;
-}
-
-static int read_dds_control(struct beiis_noise *n)
-{
-	u16 value;
-	int ret = read_reg(n, REG_DDS_CONTROL, &value);
-
-	if (!ret) {
-		n->dds_enable = !!(value & BIT(0));
-		n->fm_enable = !!(value & BIT(1));
-	}
-
-	return ret;
-}
-
-static int write_control(struct beiis_noise *n)
-{
-	return write_reg(n, REG_CONTROL,
-			 n->generator | (n->output_enable ? BIT(3) : 0));
-}
-
-static int write_dds_control(struct beiis_noise *n)
-{
-	return write_reg(n, REG_DDS_CONTROL,
-			 (n->dds_enable ? BIT(0) : 0) |
-			 (n->fm_enable ? BIT(1) : 0));
 }
 
 static ssize_t generator_show(struct device *dev,
@@ -105,14 +70,18 @@ static ssize_t generator_show(struct device *dev,
 {
 	struct beiis_noise *n = i2c_get_clientdata(to_i2c_client(dev));
 	static const char * const names[] = { "null", "prn", "dds" };
+	u16 control;
 	int ret;
 
 	mutex_lock(&n->lock);
-	ret = read_control(n);
-	if (!ret && n->generator >= ARRAY_SIZE(names))
-		ret = -EINVAL;
-	if (!ret)
-		ret = sysfs_emit(buf, "%s\n", names[n->generator]);
+	ret = beiis_noise_read_reg(n->client, REG_CONTROL, &control);
+	if (!ret) {
+		control = FIELD_GET(CONTROL_GENERATOR, control);
+		if (control >= ARRAY_SIZE(names))
+			ret = -EINVAL;
+		else
+			ret = sysfs_emit(buf, "%s\n", names[control]);
+	}
 	mutex_unlock(&n->lock);
 
 	return ret;
@@ -124,6 +93,7 @@ static ssize_t generator_store(struct device *dev,
 {
 	struct beiis_noise *n = i2c_get_clientdata(to_i2c_client(dev));
 	u8 value;
+	u16 control;
 	int ret;
 
 	if (sysfs_streq(buf, "null"))
@@ -136,8 +106,12 @@ static ssize_t generator_store(struct device *dev,
 		return -EINVAL;
 
 	mutex_lock(&n->lock);
-	n->generator = value;
-	ret = write_control(n);
+	ret = beiis_noise_read_reg(n->client, REG_CONTROL, &control);
+	if (!ret) {
+		control &= ~CONTROL_GENERATOR;
+		control |= FIELD_PREP(CONTROL_GENERATOR, value);
+		ret = beiis_noise_write_reg(n->client, REG_CONTROL, control);
+	}
 	mutex_unlock(&n->lock);
 
 	return ret ? ret : count;
@@ -148,12 +122,13 @@ static ssize_t output_enable_show(struct device *dev,
 				  struct device_attribute *attr, char *buf)
 {
 	struct beiis_noise *n = i2c_get_clientdata(to_i2c_client(dev));
+	u16 control;
 	int ret;
 
 	mutex_lock(&n->lock);
-	ret = read_control(n);
+	ret = beiis_noise_read_reg(n->client, REG_CONTROL, &control);
 	if (!ret)
-		ret = sysfs_emit(buf, "%u\n", n->output_enable);
+		ret = sysfs_emit(buf, "%u\n", !!(control & CONTROL_OUTPUT_ENABLE));
 	mutex_unlock(&n->lock);
 
 	return ret;
@@ -165,6 +140,7 @@ static ssize_t output_enable_store(struct device *dev,
 {
 	struct beiis_noise *n = i2c_get_clientdata(to_i2c_client(dev));
 	bool value;
+	u16 control;
 	int ret;
 
 	ret = kstrtobool(buf, &value);
@@ -172,8 +148,14 @@ static ssize_t output_enable_store(struct device *dev,
 		return ret;
 
 	mutex_lock(&n->lock);
-	n->output_enable = value;
-	ret = write_control(n);
+	ret = beiis_noise_read_reg(n->client, REG_CONTROL, &control);
+	if (!ret) {
+		if (value)
+			control |= CONTROL_OUTPUT_ENABLE;
+		else
+			control &= ~CONTROL_OUTPUT_ENABLE;
+		ret = beiis_noise_write_reg(n->client, REG_CONTROL, control);
+	}
 	mutex_unlock(&n->lock);
 
 	return ret ? ret : count;
@@ -188,11 +170,9 @@ static ssize_t amplitude_show(struct device *dev,
 	int ret;
 
 	mutex_lock(&n->lock);
-	ret = read_reg(n, REG_DIF_GAIN, &value);
-	if (!ret) {
-		n->amplitude = value & 0xff;
-		ret = sysfs_emit(buf, "%u\n", n->amplitude);
-	}
+	ret = beiis_noise_read_reg(n->client, REG_AMPLITUDE, &value);
+	if (!ret)
+		ret = sysfs_emit(buf, "%u\n", value & 0xff);
 	mutex_unlock(&n->lock);
 
 	return ret;
@@ -211,9 +191,7 @@ static ssize_t amplitude_store(struct device *dev,
 		return -EINVAL;
 
 	mutex_lock(&n->lock);
-	ret = write_reg(n, REG_DIF_GAIN, value);
-	if (!ret)
-		n->amplitude = value;
+	ret = beiis_noise_write_reg(n->client, REG_AMPLITUDE, value);
 	mutex_unlock(&n->lock);
 
 	return ret ? ret : count;
@@ -228,11 +206,9 @@ static ssize_t pwm_reference_show(struct device *dev,
 	int ret;
 
 	mutex_lock(&n->lock);
-	ret = read_reg(n, REG_REF_PWM, &value);
-	if (!ret) {
-		n->pwm_reference = value & 0x03ff;
-		ret = sysfs_emit(buf, "%u\n", n->pwm_reference);
-	}
+	ret = beiis_noise_read_reg(n->client, REG_PWM_REFERENCE, &value);
+	if (!ret)
+		ret = sysfs_emit(buf, "%u\n", value & 0xff);
 	mutex_unlock(&n->lock);
 
 	return ret;
@@ -247,13 +223,11 @@ static ssize_t pwm_reference_store(struct device *dev,
 	int ret;
 
 	ret = kstrtouint(buf, 0, &value);
-	if (ret || value > 1023)
+	if (ret || value > 255)
 		return -EINVAL;
 
 	mutex_lock(&n->lock);
-	ret = write_reg(n, REG_REF_PWM, value);
-	if (!ret)
-		n->pwm_reference = value;
+	ret = beiis_noise_write_reg(n->client, REG_PWM_REFERENCE, value);
 	mutex_unlock(&n->lock);
 
 	return ret ? ret : count;
@@ -264,12 +238,13 @@ static ssize_t dds_enable_show(struct device *dev,
 			       struct device_attribute *attr, char *buf)
 {
 	struct beiis_noise *n = i2c_get_clientdata(to_i2c_client(dev));
+	u16 control;
 	int ret;
 
 	mutex_lock(&n->lock);
-	ret = read_dds_control(n);
+	ret = beiis_noise_read_reg(n->client, REG_CONTROL, &control);
 	if (!ret)
-		ret = sysfs_emit(buf, "%u\n", n->dds_enable);
+		ret = sysfs_emit(buf, "%u\n", !!(control & CONTROL_DDS_ENABLE));
 	mutex_unlock(&n->lock);
 
 	return ret;
@@ -281,6 +256,7 @@ static ssize_t dds_enable_store(struct device *dev,
 {
 	struct beiis_noise *n = i2c_get_clientdata(to_i2c_client(dev));
 	bool value;
+	u16 control;
 	int ret;
 
 	ret = kstrtobool(buf, &value);
@@ -288,8 +264,14 @@ static ssize_t dds_enable_store(struct device *dev,
 		return ret;
 
 	mutex_lock(&n->lock);
-	n->dds_enable = value;
-	ret = write_dds_control(n);
+	ret = beiis_noise_read_reg(n->client, REG_CONTROL, &control);
+	if (!ret) {
+		if (value)
+			control |= CONTROL_DDS_ENABLE;
+		else
+			control &= ~CONTROL_DDS_ENABLE;
+		ret = beiis_noise_write_reg(n->client, REG_CONTROL, control);
+	}
 	mutex_unlock(&n->lock);
 
 	return ret ? ret : count;
@@ -300,12 +282,13 @@ static ssize_t fm_enable_show(struct device *dev,
 			      struct device_attribute *attr, char *buf)
 {
 	struct beiis_noise *n = i2c_get_clientdata(to_i2c_client(dev));
+	u16 control;
 	int ret;
 
 	mutex_lock(&n->lock);
-	ret = read_dds_control(n);
+	ret = beiis_noise_read_reg(n->client, REG_CONTROL, &control);
 	if (!ret)
-		ret = sysfs_emit(buf, "%u\n", n->fm_enable);
+		ret = sysfs_emit(buf, "%u\n", !!(control & CONTROL_FM_ENABLE));
 	mutex_unlock(&n->lock);
 
 	return ret;
@@ -317,6 +300,7 @@ static ssize_t fm_enable_store(struct device *dev,
 {
 	struct beiis_noise *n = i2c_get_clientdata(to_i2c_client(dev));
 	bool value;
+	u16 control;
 	int ret;
 
 	ret = kstrtobool(buf, &value);
@@ -324,8 +308,14 @@ static ssize_t fm_enable_store(struct device *dev,
 		return ret;
 
 	mutex_lock(&n->lock);
-	n->fm_enable = value;
-	ret = write_dds_control(n);
+	ret = beiis_noise_read_reg(n->client, REG_CONTROL, &control);
+	if (!ret) {
+		if (value)
+			control |= CONTROL_FM_ENABLE;
+		else
+			control &= ~CONTROL_FM_ENABLE;
+		ret = beiis_noise_write_reg(n->client, REG_CONTROL, control);
+	}
 	mutex_unlock(&n->lock);
 
 	return ret ? ret : count;
@@ -340,7 +330,7 @@ static ssize_t component_id_show(struct device *dev,
 	int ret;
 
 	mutex_lock(&n->lock);
-	ret = read_reg(n, REG_COMPONENT_ID, &value);
+	ret = beiis_noise_read_reg(n->client, REG_COMPONENT_ID, &value);
 	if (!ret)
 		ret = sysfs_emit(buf, "0x%04x\n", value);
 	mutex_unlock(&n->lock);
@@ -357,7 +347,7 @@ static ssize_t firmware_id_show(struct device *dev,
 	int ret;
 
 	mutex_lock(&n->lock);
-	ret = read_reg(n, REG_FIRMWARE_ID, &value);
+	ret = beiis_noise_read_reg(n->client, REG_FIRMWARE_ID, &value);
 	if (!ret)
 		ret = sysfs_emit(buf, "0x%04x\n", value);
 	mutex_unlock(&n->lock);
@@ -393,7 +383,7 @@ static int beiis_noise_probe(struct i2c_client *client)
 	mutex_init(&n->lock);
 	i2c_set_clientdata(client, n);
 
-	ret = read_reg(n, REG_COMPONENT_ID, &component_id);
+	ret = beiis_noise_read_reg(client, REG_COMPONENT_ID, &component_id);
 	if (ret)
 		return dev_err_probe(&client->dev, ret,
 				     "failed to read component ID\n");
@@ -403,27 +393,10 @@ static int beiis_noise_probe(struct i2c_client *client)
 				     "unexpected component ID 0x%04x\n",
 				     component_id);
 
-	ret = read_reg(n, REG_FIRMWARE_ID, &firmware_id);
+	ret = beiis_noise_read_reg(client, REG_FIRMWARE_ID, &firmware_id);
 	if (ret)
 		return dev_err_probe(&client->dev, ret,
 				     "failed to read firmware ID\n");
-
-	mutex_lock(&n->lock);
-	ret = read_control(n);
-	if (!ret)
-		ret = read_reg(n, REG_DIF_GAIN, &component_id);
-	if (!ret)
-		n->amplitude = component_id & 0xff;
-	if (!ret)
-		ret = read_reg(n, REG_REF_PWM, &component_id);
-	if (!ret)
-		n->pwm_reference = component_id & 0x03ff;
-	if (!ret)
-		ret = read_dds_control(n);
-	mutex_unlock(&n->lock);
-	if (ret)
-		return dev_err_probe(&client->dev, ret,
-				     "failed to read initial configuration\n");
 
 	dev_info(&client->dev, "detected Noise Generator (firmware 0x%04x)\n",
 		 firmware_id);
