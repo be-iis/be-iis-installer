@@ -1,0 +1,13 @@
+[Unit]
+Description=BE-IIS HPP SPE Noise Generator Webtool
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/opt/be-iis/BE-IIS-HPP-SPE-NOISE/examples/webtool
+ExecStart=/usr/bin/python3 /opt/be-iis/BE-IIS-HPP-SPE-NOISE/examples/webtool/noise_webtool.py
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
