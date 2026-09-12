@@ -11,17 +11,18 @@ BUILD_DIR="$REPO_ROOT/build/machxo2-fpga-manager"
 BASE_URL="https://raw.githubusercontent.com/torvalds/linux/v6.12/drivers/fpga"
 
 [ -d "$KDIR" ] || die "Kernel build directory not found: $KDIR"
-[ -f "$KDIR/include/linux/fpga/fpga-mgr.h" ] || die "Kernel headers lack FPGA manager API"
-
 say STEP1 "Preparing $BUILD_DIR"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 
 say STEP2 "Downloading Linux v6.12 FPGA manager sources"
+mkdir -p "$BUILD_DIR/include/linux/fpga"
 wget -q -O "$BUILD_DIR/fpga-mgr.c" "$BASE_URL/fpga-mgr.c"
 wget -q -O "$BUILD_DIR/machxo2-spi.c" "$BASE_URL/machxo2-spi.c"
+wget -q -O "$BUILD_DIR/include/linux/fpga/fpga-mgr.h" \
+  "https://raw.githubusercontent.com/torvalds/linux/v6.12/include/linux/fpga/fpga-mgr.h"
 
-printf 'obj-m := fpga-mgr.o machxo2-spi.o\n' > "$BUILD_DIR/Makefile"
+printf 'ccflags-y := -I$(src)/include\nobj-m := fpga-mgr.o machxo2-spi.o\n' > "$BUILD_DIR/Makefile"
 
 say STEP3 "Building external modules"
 make -C "$KDIR" M="$BUILD_DIR" modules
