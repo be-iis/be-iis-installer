@@ -28,11 +28,11 @@ def write_settings(values):
             if value not in ("0", "1"):
                 raise ValueError(f"Invalid value for {field}")
         elif field == "amplitude":
-            if not isinstance(value, int) or not 0 <= value <= 255:
-                raise ValueError("Amplitude must be 0..255")
+            if not isinstance(value, int) or not 0 <= value <= 4:
+                raise ValueError("Software gain must be a stage from 0 to 4")
         elif field == "pwm_reference":
-            if not isinstance(value, int) or not 0 <= value <= 255:
-                raise ValueError("Hardware gain must be 0..255")
+            if not isinstance(value, int) or not 0 <= value <= 1023:
+                raise ValueError("Hardware gain must be 0..1023")
         else:
             raise ValueError(f"Unsupported setting: {field}")
         (SYSFS / field).write_text(f"{value}\n")
@@ -50,9 +50,10 @@ label{display:block;margin:.8rem 0 .25rem}input[type=range]{width:100%}select,in
 <div class="card">
 <label>Generator<select id="generator" onchange="set('generator',this.value)"><option value="null">Off (null)</option><option value="prn">PRN noise</option><option value="dds">DDS</option></select></label>
 <label class="check"><input id="output_enable" type="checkbox" onchange="setBool('output_enable',this)">Enable output</label>
-<label>Software gain / amplitude: <strong id="amplitude_value">0</strong><input id="amplitude" type="range" min="0" max="255" onchange="setNumber('amplitude',this)"></label>
-<small>The LEDs display the software-amplitude value.</small>
-<label>Hardware gain (PWM reference)<input id="pwm_reference" type="number" min="0" max="255" onchange="setNumber('pwm_reference',this)"></label>
+<label>Hardware gain (PWM reference): <strong id="pwm_reference_value">0</strong><input id="pwm_reference" type="range" min="0" max="1023" oninput="pwm_reference_value.textContent=this.value" onchange="setNumber('pwm_reference',this)"></label>
+<small>The six LEDs display this PWM hardware-gain value.</small>
+<label>Software gain stage<select id="amplitude" onchange="setNumber('amplitude',this)"><option value="0">0 — 1× (0 dB)</option><option value="1">1 — 1/2 (−6 dB)</option><option value="2">2 — 1/4 (−12 dB)</option><option value="3">3 — 1/8 (−18 dB)</option><option value="4">4 — 1/16 (−24 dB)</option></select></label>
+<small>The software stage attenuates around the DAC midpoint; the PWM reference sets the analog full-scale level.</small>
 </div>
 <div class="card"><h2>DDS / FM</h2>
 <label class="check"><input id="dds_enable" type="checkbox" onchange="setBool('dds_enable',this)">Enable DDS</label>
@@ -61,7 +62,7 @@ label{display:block;margin:.8rem 0 .25rem}input[type=range]{width:100%}select,in
 <p id="status"></p><footer><span id="identity"></span> · <a href="https://www.be-iis.eu/" target="_blank" rel="noopener">www.be-iis.eu</a></footer>
 <script>
 async function request(path,data){const r=await fetch(path,{method:data?'POST':'GET',headers:{'Content-Type':'application/json'},body:data?JSON.stringify(data):undefined});const j=await r.json();if(!r.ok)throw Error(j.error);return j}
-function display(s){generator.value=s.generator;output_enable.checked=s.output_enable==='1';amplitude.value=s.amplitude;amplitude_value.textContent=s.amplitude;pwm_reference.value=s.pwm_reference;dds_enable.checked=s.dds_enable==='1';fm_enable.checked=s.fm_enable==='1';identity.textContent='Component '+s.component_id+', firmware '+s.firmware_id}
+function display(s){generator.value=s.generator;output_enable.checked=s.output_enable==='1';amplitude.value=s.amplitude;pwm_reference.value=s.pwm_reference;pwm_reference_value.textContent=s.pwm_reference;dds_enable.checked=s.dds_enable==='1';fm_enable.checked=s.fm_enable==='1';identity.textContent='Component '+s.component_id+', firmware '+s.firmware_id}
 async function set(field,value){try{const r=await request('/api/settings',{[field]:value});display(r.status);status.textContent='Applied.'}catch(e){status.textContent='Error: '+e.message}}
 function setBool(field,element){set(field,element.checked?'1':'0')}
 function setNumber(field,element){set(field,Number(element.value))}
