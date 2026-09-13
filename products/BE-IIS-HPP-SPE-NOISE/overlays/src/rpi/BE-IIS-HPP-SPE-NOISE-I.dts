@@ -16,6 +16,7 @@
 			noise_i: noise-generator@2a {
 				compatible = "be-iis,hpp-spe-noise";
 				reg = <0x2a>;
+				be-iis,instance = <1>;
 				status = "okay";
 			};
 		};
