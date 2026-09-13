@@ -11,7 +11,7 @@ import subprocess
 
 SYSFS_ROOT = Path("/sys/bus/i2c/devices")
 DRIVER_NAME = "beiis-hpp-spe-noise"
-PRODUCT_ROOT = Path("/opt/be-iis/BE-IIS-HPP-SPE-NOISE")
+PRODUCT_ROOT = Path(__file__).resolve().parents[2]
 FIRMWARE_DIR = PRODUCT_ROOT / "firmware"
 FLASH_SCRIPT = PRODUCT_ROOT / "tools" / "beiis-machxo2-load.sh"
 BOOLEAN_FIELDS = {"output_enable", "dds_enable", "fm_enable"}
