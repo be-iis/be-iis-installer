@@ -19,10 +19,10 @@ A0 is MachXO2 PL2A / package pin 1; A1 is PL2B / package pin 2.
 | Register | Name | Access | Value |
 |---:|---|---|---|
 | 0x0000 | CONTROL | R/W | generator select and output enable |
-| 0x0001 | DIF_GAIN | R/W | output amplitude, 0..255 |
+| 0x0001 | DIF_GAIN | R/W | centred software attenuation stage: 0=1x, 1=1/2, 2=1/4, 3=1/8, 4=1/16 |
 | 0x0003 | REF_PWM | R/W | PWM reference, 0..1023 |
 | 0x0004 | COMPONENT_ID | R | 0x4e47 ("NG") |
-| 0x0005 | FIRMWARE_ID | R | 0x0001 |
+| 0x0005 | FIRMWARE_ID | R | 0x0002 |
 | 0x0300 | DDS_CONTROL | R/W | DDS/FM enable |
 | 0x0301..06 | DDS/FM | R/W | phase step, amplitude and FM settings |
 
@@ -36,8 +36,8 @@ sudo i2ctransfer -f -y 1 w2@0x2a 0x00 0x05 r2
 ## Kernel driver
 
 At probe time the driver reads and validates `COMPONENT_ID` and reads
-`FIRMWARE_ID`. The existing configuration attributes read back the current
-FPGA register values:
+`FIRMWARE_ID`. The configuration attributes report the driver's shadow cache: default values
+at probe time and each value only after its corresponding I2C write is ACKed.
 
 ```sh
 cd /sys/bus/i2c/devices/1-002a

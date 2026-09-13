@@ -177,7 +177,7 @@ static ssize_t amplitude_store(struct device *dev,
 	int ret;
 
 	ret = kstrtouint(buf, 0, &value);
-	if (ret || value > 255)
+	if (ret || value > 4)
 		return -EINVAL;
 	mutex_lock(&n->lock);
 	ret = beiis_noise_write_reg(n->client, REG_AMPLITUDE, value);
@@ -359,7 +359,7 @@ static int beiis_noise_probe(struct i2c_client *client)
 
 	/* Defaults in the VHDL image; later writes replace only ACKed values. */
 	n->control = FIELD_PREP(CONTROL_GENERATOR, 1) | CONTROL_OUTPUT_ENABLE;
-	n->amplitude = 128;
+	n->amplitude = 0;
 	n->pwm_reference = 512;
 	n->dds_control = DDS_CONTROL_ENABLE | DDS_CONTROL_FM_ENABLE;
 
