@@ -12,12 +12,36 @@ address and HAT++ instance.
 
 - **Hardware gain** is the 10-bit `pwm_reference` value (0…1023). It sets the
   analog DAC reference and is represented by the six front-panel LEDs.
-- **Software gain** is the discrete `amplitude` stage (0…4): 1×, 1/2, 1/4,
-  1/8, or 1/16. It attenuates around the DAC midpoint.
+- Six buttons adjust hardware gain by **−100, −10, −1, +1, +10, +100**,
+  clamped to 0…1023. Rapid clicks are queued in order.
+- **DDS carrier frequency** and **FM modulation frequency** are entered in Hz
+  and applied separately. The driver programs their 24-bit phase steps.
+  Resolution is nominally 1.90735 Hz; status shows the realizable frequency
+  rounded to whole Hz. FM depth is unchanged.
+- Digital/software gain has been removed, including its sysfs attribute.
 - Generator, output enable, DDS, and FM are controlled per selected device.
 
-The matching FPGA image and kernel module must support the discrete
-software-gain definition.
+Rebuild/install and reload the updated `beiis-hpp-spe-noise` kernel module,
+then restart the webtool service. Frequency controls use `dds_frequency_hz`
+and `fm_frequency_hz`. With an older module they are disabled with an update
+hint; the other controls remain usable. FPGA firmware `0x0003` removes digital
+gain; frequency registers already exist in `0x0002`. This change does not
+include a newly built FPGA binary.
+
+The driver pauses DDS while writing both halves of a frequency step and
+briefly disables the output if DDS is selected and active. On success it
+restores the prior enable state. An I²C error is reported; after an interrupted
+update DDS/output may remain disabled. Retry the frequency write, then
+explicitly re-enable the desired controls after resolving the error.
+
+Frequency input range is 0…15,999,998 Hz (nominally below Nyquist). This is a
+numerical limit, not a guarantee of analogue bandwidth or sine quality.
+Carrier plus FM deviation must remain in the usable output band. Zero DDS
+frequency holds the carrier phase when FM is off; it does not mute the output.
+
+The driver reports cached, acknowledged settings because current FPGA
+configuration registers do not support readback. Rebinding assumes power-up
+defaults; do not use raw I²C writes or reflash the board behind the bound driver.
 
 ## Firmware update
 
