@@ -26,10 +26,12 @@ clean:
 
 install: all
 	install -D -m 0644 $(MODULE) $(MODDIR)/$(MODULE)
+	# Remove stale compressed copies so modprobe selects the newly built module.
+	rm -f $(MODDIR)/$(MODULE).xz $(MODDIR)/$(MODULE).zst $(MODDIR)/$(MODULE).gz
 	depmod -a $(KERNELRELEASE)
 
 uninstall:
-	rm -f $(MODDIR)/$(MODULE)
+	rm -f $(MODDIR)/$(MODULE) $(MODDIR)/$(MODULE).xz $(MODDIR)/$(MODULE).zst $(MODDIR)/$(MODULE).gz
 	depmod -a $(KERNELRELEASE)
 
 help:

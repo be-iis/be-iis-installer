@@ -1,5 +1,7 @@
 PYTHON ?= python3
 INSTALL_DIR ?= /opt/be-iis/BE-IIS-HPP-SPE-NOISE/examples/webtool
+PRODUCT_INSTALL_DIR := $(abspath $(INSTALL_DIR)/../..)
+PRODUCT_SOURCE_DIR := $(abspath ../..)
 SERVICE ?= beiis-noise-webtool.service
 
 .PHONY: run install enable disable status
@@ -10,6 +12,12 @@ run:
 install:
 	sudo install -d -m 0755 $(INSTALL_DIR)
 	sudo install -m 0755 noise_webtool.py $(INSTALL_DIR)/noise_webtool.py
+	sudo install -d -m 0755 "$(PRODUCT_INSTALL_DIR)/firmware" "$(PRODUCT_INSTALL_DIR)/tools"
+	@set -e; for image in "$(PRODUCT_SOURCE_DIR)"/firmware/*.bin; do \
+		[ -f "$$image" ] || continue; \
+		sudo install -m 0644 "$$image" "$(PRODUCT_INSTALL_DIR)/firmware/"; \
+	done
+	sudo install -m 0755 "$(PRODUCT_SOURCE_DIR)/tools/beiis-machxo2-load.sh" "$(PRODUCT_INSTALL_DIR)/tools/beiis-machxo2-load.sh"
 	sudo install -m 0644 $(SERVICE) /etc/systemd/system/$(SERVICE)
 	sudo systemctl daemon-reload
 
