@@ -19,14 +19,14 @@ A0 is MachXO2 PL2A / package pin 1; A1 is PL2B / package pin 2.
 | Register | Name | Access | Value |
 |---:|---|---|---|
 | 0x0000 | CONTROL | W | generator select and output enable |
-| 0x0001..02 | Reserved | — | former digital gains; ignored by firmware 0x0003 |
+| 0x0001..02 | Reserved | — | former digital gains; ignored |
 | 0x0003 | REF_PWM | W | PWM reference, 0..1023 |
 | 0x0004 | COMPONENT_ID | R | 0x4e47 ("NG") |
-| 0x0005 | FIRMWARE_ID | R | 0x0003 (gain removed) |
+| 0x0005 | FIRMWARE_ID | R | 0x0007 |
 | 0x0300 | DDS_CONTROL | W | DDS/FM enable |
 | 0x0301 | DDS_STEP_HI | W | phase step bits 23:16 in low byte |
 | 0x0302 | DDS_STEP_LO | W | phase step bits 15:0 |
-| 0x0303 | Reserved | — | former DDS amplitude; ignored by firmware 0x0003 |
+| 0x0303 | Reserved | — | former DDS amplitude; ignored |
 | 0x0304 | FM_STEP_HI | W | LFO phase step bits 23:16 in low byte |
 | 0x0305 | FM_STEP_LO | W | LFO phase step bits 15:0 |
 | 0x0306 | FM_DEVIATION | W | signed low-byte triangle deviation coefficient |
@@ -59,11 +59,11 @@ echo 2000000 > dds_frequency_hz
 echo 1000 > fm_frequency_hz
 ```
 
-The driver calculates `round(hz * 2^24 / 32000000)`, pauses DDS, writes both
+The driver calculates `round(hz * 2^24 / 50000000)`, pauses DDS, writes both
 16-bit step registers under its mutex, then restores the previous run state.
 When DDS is selected and output is enabled, it also mutes and restores the
 output. A failed transfer returns an error without restarting a partial update.
 Readback uses the cached step, converted to the nearest whole Hz; for example,
-1000 Hz yields step 524 (999.451 Hz nominal, reported as 999).
-The numerical input limit is 15,999,998 Hz; usable analogue bandwidth is lower
+1000 Hz yields step 336 (1001.358 Hz nominal, reported as 1001).
+The numerical input limit is 24,999,998 Hz; usable analogue bandwidth is lower
 and also depends on FM deviation. FM depth is unaffected by the rate control.
