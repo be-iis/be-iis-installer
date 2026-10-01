@@ -22,7 +22,7 @@ A0 is MachXO2 PL2A / package pin 1; A1 is PL2B / package pin 2.
 | 0x0001..02 | Reserved | — | former digital gains; ignored |
 | 0x0003 | REF_PWM | W | PWM reference, 0..1023 |
 | 0x0004 | COMPONENT_ID | R | 0x4e47 ("NG") |
-| 0x0005 | FIRMWARE_ID | R | 0x0007 |
+| 0x0005 | FIRMWARE_ID | R | 0x0008 |
 | 0x0300 | DDS_CONTROL | W | DDS/FM enable |
 | 0x0301 | DDS_STEP_HI | W | phase step bits 23:16 in low byte |
 | 0x0302 | DDS_STEP_LO | W | phase step bits 15:0 |
@@ -59,11 +59,11 @@ echo 2000000 > dds_frequency_hz
 echo 1000 > fm_frequency_hz
 ```
 
-The driver calculates `round(hz * 2^24 / 50000000)`, pauses DDS, writes both
+The driver calculates `round(hz * 2^24 / 25000000)`, pauses DDS, writes both
 16-bit step registers under its mutex, then restores the previous run state.
 When DDS is selected and output is enabled, it also mutes and restores the
 output. A failed transfer returns an error without restarting a partial update.
 Readback uses the cached step, converted to the nearest whole Hz; for example,
-1000 Hz yields step 336 (1001.358 Hz nominal, reported as 1001).
-The numerical input limit is 24,999,998 Hz; usable analogue bandwidth is lower
+1000 Hz yields step 671 (999.868 Hz nominal, reported as 1000).
+The numerical input limit is 12,499,998 Hz; usable analogue bandwidth is lower
 and also depends on FM deviation. FM depth is unaffected by the rate control.
