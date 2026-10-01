@@ -8,18 +8,18 @@ KVER="$(uname -r)"
 KDIR="/lib/modules/$KVER/build"
 [[ -d "$KDIR" ]] || t1s_die "Kernel headers not found: $KDIR"
 
-if modinfo lan865x >/dev/null 2>&1 && modinfo oa_tc6 >/dev/null 2>&1; then
-    t1s_note "Running kernel already provides lan865x and oa_tc6."
+if modinfo adin1140 >/dev/null 2>&1; then
+    t1s_note "Running kernel already provides adin1140."
     exit 0
 fi
 
-t1s_warn "LAN865x/OA-TC6 missing; using at least the S2500-required OA-TC6 feature baseline."
-SRC="$(t1s_prepare_source "$REPO_ROOT" lan865x "$KVER")"
-OUT="$REPO_ROOT/build/lan865x"
+t1s_warn "adin1140 missing; fetching a compatible upstream T1S source set."
+SRC="$(t1s_prepare_source "$REPO_ROOT" adin1140 "$KVER")"
+OUT="$REPO_ROOT/build/adin1140"
 rm -rf "$OUT"; mkdir -p "$OUT/include/linux"
 
-cp "$SRC/drivers/net/ethernet/microchip/lan865x/lan865x.c" "$OUT/"
-cp "$SRC/drivers/net/phy/microchip_t1s.c" "$OUT/"
+cp "$SRC/drivers/net/ethernet/adi/adin1140.c" "$OUT/"
+cp "$SRC/drivers/net/phy/adin1140-phy.c" "$OUT/"
 cp "$SRC/include/linux/oa_tc6.h" "$OUT/include/linux/"
 cp "$SRC/drivers/net/ethernet/oa_tc6/oa_tc6.c" "$OUT/oa_tc6_core.c"
 cp "$SRC/drivers/net/ethernet/oa_tc6/oa_tc6_ptp.c" "$OUT/" 2>/dev/null || true
@@ -27,7 +27,7 @@ cp "$SRC/drivers/net/ethernet/oa_tc6/oa_tc6_tstamp.c" "$OUT/" 2>/dev/null || tru
 cp "$SRC/drivers/net/ethernet/oa_tc6/oa_tc6_std_def.h" "$OUT/" 2>/dev/null || true
 
 cat > "$OUT/Makefile" <<'EOF'
-obj-m := oa_tc6.o lan865x.o microchip_t1s.o
+obj-m := oa_tc6.o adin1140.o adin1140-phy.o
 oa_tc6-y := oa_tc6_core.o
 oa_tc6-y += $(if $(wildcard $(M)/oa_tc6_ptp.c),oa_tc6_ptp.o)
 oa_tc6-y += $(if $(wildcard $(M)/oa_tc6_tstamp.c),oa_tc6_tstamp.o)

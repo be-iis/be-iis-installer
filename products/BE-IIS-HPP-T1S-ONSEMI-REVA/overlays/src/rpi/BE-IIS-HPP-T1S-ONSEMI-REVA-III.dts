@@ -1,0 +1,53 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// BE-IIS-HPP-T1S-ONSEMI-REVA, HAT++ position III
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+    compatible = "brcm,bcm2835", "brcm,bcm2711", "brcm,bcm2712";
+
+    fragment@0 {
+        target = <&spi0>;
+        __overlay__ {
+            #address-cells = <1>;
+            #size-cells = <0>;
+            status = "okay";
+
+            num-cs = <3>;
+            cs-gpios =
+                <&gpio 8 GPIO_ACTIVE_LOW>,
+                <&gpio 7 GPIO_ACTIVE_LOW>,
+                <&gpio 16 GPIO_ACTIVE_LOW>;
+
+            eth3: ethernet@2 {
+                compatible = "onnn,s2500";
+                reg = <2>;
+                pinctrl-names = "default";
+                pinctrl-0 = <&beiis_t1s_onsemi_iii_irq>;
+                interrupt-parent = <&gpio>;
+                interrupts = <12 IRQ_TYPE_LEVEL_LOW>;
+                spi-max-frequency = <15000000>;
+                status = "okay";
+            };
+        };
+    };
+
+    fragment@2 {
+        target = <&gpio>;
+        __overlay__ {
+            beiis_t1s_onsemi_iii_irq: beiis-t1s-onsemi-iii-irq {
+                brcm,pins = <12>;
+                brcm,function = <0>;
+                brcm,pull = <2>;
+            };
+        };
+    };
+
+    __overrides__ {
+        speed = <&eth3>, "spi-max-frequency:0";
+    };
+};

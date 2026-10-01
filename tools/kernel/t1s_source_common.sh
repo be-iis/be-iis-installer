@@ -87,13 +87,13 @@ t1s_prepare_source() {
     fi
 
     if [[ -d "$tree/.git" ]] && t1s_has_target "$tree" "$target"; then
-        t1s_note "Using Raspberry Pi $branch: required $target and S2500-generation OA-TC6 features are present." >&2
+        t1s_note "Using Raspberry Pi $branch with the required $target/S2500-generation OA-TC6 features." >&2
         printf '%s\n' "$tree"
         return
     fi
 
-    t1s_warn "Raspberry Pi $branch lacks $target and/or the required S2500-generation OA-TC6 feature set."
-    t1s_warn "Using S2500 v8 baseline $S2500_BASE_COMMIT plus the upstream v8 series."
-    t1s_warn "This is a feature baseline, not a raw commit-number comparison, so newer compatible backports are accepted."
+    t1s_warn "Raspberry Pi $branch lacks $target and/or the S2500-generation OA-TC6 feature set."
+    t1s_warn "Falling back to S2500 v8 base $S2500_BASE_COMMIT plus the upstream v8 series."
+    t1s_warn "Feature detection is used instead of raw commit ordering so newer Raspberry Pi backports are accepted."
     t1s_prepare_upstream_v8 "$repo_root"
 }
