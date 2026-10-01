@@ -16,9 +16,9 @@
 #define REG_DDS_STEP_LO   0x0302
 #define REG_FM_STEP_HI    0x0304
 #define REG_FM_STEP_LO    0x0305
-#define NOISE_CLOCK_HZ   50000000U
+#define NOISE_CLOCK_HZ   25000000U
 #define NOISE_PHASE_BITS 24
-#define NOISE_MAX_FREQUENCY_HZ 24999998U
+#define NOISE_MAX_FREQUENCY_HZ 12499998U
 #define REG_COMPONENT_ID  0x0004
 #define REG_FIRMWARE_ID   0x0005
 #define COMPONENT_ID_NOISE_GENERATOR 0x4e47 /* "NG" */
@@ -449,8 +449,8 @@ static int beiis_noise_probe(struct i2c_client *client)
 	n->control = FIELD_PREP(CONTROL_GENERATOR, 2) | CONTROL_OUTPUT_ENABLE;
 	n->pwm_reference = 512;
 	n->dds_control = DDS_CONTROL_ENABLE;
-	n->dds_step = 671089; /* 2 MHz at 50-MHz core clock */
-	n->fm_step = 67; /* about 199.68 Hz at 50-MHz core clock */
+	n->dds_step = 1342177; /* 2 MHz at 25-MHz core clock */
+	n->fm_step = 134; /* about 199.68 Hz at 25-MHz core clock */
 
 	ret = beiis_noise_read_reg(client, REG_COMPONENT_ID, &component_id);
 	if (ret)
