@@ -57,9 +57,10 @@ import sys
 
 p = Path(sys.argv[1])
 s = p.read_text()
-marker = '#define LAN867X_REG_STS2 0x0019\\n'
-wrapper = r'''#define LAN867X_REG_STS2 0x0019
+include_line = '#include <linux/phy.h>'
+wrapper = r'''
 
+/* Compatibility helpers for kernels without genphy_*_mmd_c45(). */
 static int microchip_t1s_read_mmd_c45(struct phy_device *phydev, int devnum,
                                       u16 regnum)
 {
@@ -74,9 +75,10 @@ static int microchip_t1s_write_mmd_c45(struct phy_device *phydev, int devnum,
                              devnum, regnum, val);
 }
 '''
-if marker not in s:
-    raise SystemExit('Could not locate Microchip PHY insertion point')
-s = s.replace(marker, wrapper, 1)
+
+if include_line not in s:
+    raise SystemExit('Could not locate linux/phy.h include in Microchip PHY source')
+s = s.replace(include_line, include_line + wrapper, 1)
 s = s.replace('.read_mmd           = genphy_read_mmd_c45,',
               '.read_mmd           = microchip_t1s_read_mmd_c45,')
 s = s.replace('.write_mmd          = genphy_write_mmd_c45,',
