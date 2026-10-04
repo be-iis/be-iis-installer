@@ -34,7 +34,15 @@ sed -i 's@#include <linux/oa_tc6.h>@#include "oa_tc6_local.h"@' "$OUT/adin1140.c
 # Backport compatibility for older Raspberry Pi kernels such as 6.12.
 # Detect API features from the actual target headers instead of guessing from
 # uname version numbers.
+HEADER_BASE="/usr/src/linux-headers-${KVER%%-rpi-*}-common-rpi/include/linux"
 NETDEV_H="$KDIR/include/linux/netdevice.h"
+PHY_H="$KDIR/include/linux/phy.h"
+
+[[ -f "$NETDEV_H" ]] || NETDEV_H="$HEADER_BASE/netdevice.h"
+[[ -f "$PHY_H" ]] || PHY_H="$HEADER_BASE/phy.h"
+
+[[ -f "$NETDEV_H" ]] || t1s_die "Could not locate target netdevice.h"
+[[ -f "$PHY_H" ]] || t1s_die "Could not locate target phy.h"
 
 if ! grep -q 'ndo_set_rx_mode_async' "$NETDEV_H"; then
     t1s_warn "Target kernel has no ndo_set_rx_mode_async; disabling runtime RX-filter updates."
@@ -47,6 +55,51 @@ fi
 if ! grep -q 'netns_immutable' "$NETDEV_H"; then
     t1s_warn "Target kernel has no netns_immutable field; omitting that assignment."
     sed -i '/^[[:space:]]*netdev->netns_immutable[[:space:]]*=/d' "$OUT/adin1140.c"
+fi
+
+# Linux 6.12 uses the older PHY loopback callback without a speed argument.
+if ! grep -A3 'set_loopback' "$PHY_H" | grep -q 'int speed'; then
+    t1s_warn "Target kernel uses legacy PHY set_loopback callback; applying compatibility signature."
+    sed -i 's/static int adin1140_loopback(struct phy_device \*phydev, bool enable, int speed)/static int adin1140_loopback(struct phy_device *phydev, bool enable)/' "$OUT/adin1140-phy.c"
+    sed -i '/^[[:space:]]*if (enable && speed)$/,+1d' "$OUT/adin1140-phy.c"
+fi
+
+# genphy_{read,write}_mmd_c45 were added with the ADIN1140 series. Older
+# kernels already expose mdiobus_c45_read/write, so provide tiny local wrappers.
+if ! grep -q 'genphy_read_mmd_c45' "$PHY_H"; then
+    t1s_warn "Target kernel lacks genphy_*_mmd_c45 helpers; using local direct-C45 wrappers."
+    python3 - "$OUT/adin1140-phy.c" <<'PY'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+s = p.read_text()
+marker = '#define ADIN1140_PCS_CTRL_LOOPBACK\tBIT(14)\n'
+wrapper = r'''
+#define ADIN1140_PCS_CTRL_LOOPBACK	BIT(14)
+
+static int adin1140_read_mmd_c45(struct phy_device *phydev, int devnum,
+                                 u16 regnum)
+{
+    return mdiobus_c45_read(phydev->mdio.bus, phydev->mdio.addr,
+                            devnum, regnum);
+}
+
+static int adin1140_write_mmd_c45(struct phy_device *phydev, int devnum,
+                                  u16 regnum, u16 val)
+{
+    return mdiobus_c45_write(phydev->mdio.bus, phydev->mdio.addr,
+                             devnum, regnum, val);
+}
+'''
+if marker not in s:
+    raise SystemExit('Could not locate ADIN1140 PCS define for C45 compatibility patch')
+s = s.replace(marker, wrapper, 1)
+s = s.replace('.read_mmd = genphy_read_mmd_c45,',
+              '.read_mmd = adin1140_read_mmd_c45,')
+s = s.replace('.write_mmd = genphy_write_mmd_c45,',
+              '.write_mmd = adin1140_write_mmd_c45,')
+p.write_text(s)
+PY
 fi
 
 cat > "$OUT/Makefile" <<'EOF'
