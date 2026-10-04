@@ -268,7 +268,13 @@ obj-m := adin1140.o adin1140-phy.o
 ccflags-y += -I$(M)
 EOF
 
-make -C "$KDIR" M="$OUT"     KBUILD_EXTRA_SYMBOLS="$TC6/Module.symvers"     modules || t1s_die "ADIN1140 build failed against shared OA-TC6 baseline"
+TC6_MAKE_ARGS=()
+if [[ -f "$TC6/.external" ]]; then
+    TC6_MAKE_ARGS+=(KBUILD_EXTRA_SYMBOLS="$TC6/Module.symvers")
+fi
+
+make -C "$KDIR" M="$OUT" "${TC6_MAKE_ARGS[@]}" modules ||
+    t1s_die "ADIN1140 build failed against shared OA-TC6 baseline"
 
 [[ -f "$OUT/adin1140.ko" ]] || t1s_die "adin1140.ko was not created"
 [[ -f "$OUT/adin1140-phy.ko" ]] || t1s_die "adin1140-phy.ko was not created"
