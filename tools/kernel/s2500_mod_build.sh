@@ -35,6 +35,13 @@ cp "$SRC/drivers/net/ethernet/onsemi/s2500/s2500_ethtool.c" "$OUT/"
 cp "$SRC/drivers/net/ethernet/onsemi/s2500/s2500_ptp.c" "$OUT/"
 cp "$SRC/drivers/net/ethernet/onsemi/s2500/s2500_hw_def.h" "$OUT/"
 cp "$SRC/drivers/net/phy/ncn26000.c" "$OUT/"
+
+# ncn26000.c uses the OPEN Alliance PHY register definitions as a local
+# driver header. Fetch it from the same pinned upstream baseline.
+t1s_fetch_upstream_file "$S2500_BASE_COMMIT" \
+    "drivers/net/phy/mdio-open-alliance.h" "$OUT/mdio-open-alliance.h" ||
+    t1s_die "Could not fetch mdio-open-alliance.h"
+
 cp "$TC6/include/linux/oa_tc6.h" "$OUT/oa_tc6_local.h"
 
 # Every S2500 translation unit reaches OA-TC6 through s2500_hw_def.h. Rewrite
