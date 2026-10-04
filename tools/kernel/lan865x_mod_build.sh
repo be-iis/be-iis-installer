@@ -25,16 +25,65 @@ if [[ "${FORCE_BUILD:-0}" == "1" ]]; then
 fi
 
 t1s_ensure_tc6_build "$REPO_ROOT"
-SRC="$(t1s_prepare_s2500_v8_minimal "$REPO_ROOT")"
 
 rm -rf "$OUT"
 mkdir -p "$OUT"
 
-cp "$SRC/drivers/net/ethernet/microchip/lan865x/lan865x.c" "$OUT/"
-cp "$SRC/drivers/net/phy/microchip_t1s.c" "$OUT/"
-cp "$TC6/include/linux/oa_tc6.h" "$OUT/oa_tc6_local.h"
+# Keep the Microchip driver source independent from the onsemi patch tree.
+# Use the same upstream base commit as the shared OA-TC6/S2500 baseline.
+t1s_note "Fetching LAN865x sources from $S2500_BASE_COMMIT."
+t1s_fetch_upstream_file "$S2500_BASE_COMMIT" \
+    "drivers/net/ethernet/microchip/lan865x/lan865x.c" "$OUT/lan865x.c" ||
+    t1s_die "Could not fetch lan865x.c"
+t1s_fetch_upstream_file "$S2500_BASE_COMMIT" \
+    "drivers/net/phy/microchip_t1s.c" "$OUT/microchip_t1s.c" ||
+    t1s_die "Could not fetch microchip_t1s.c"
 
+cp "$TC6/include/linux/oa_tc6.h" "$OUT/oa_tc6_local.h"
 sed -i 's@#include <linux/oa_tc6.h>@#include "oa_tc6_local.h"@' "$OUT/lan865x.c"
+
+# Older kernels may lack the generic direct Clause 45 helpers introduced in
+# 2026. Detect the target PHY API and provide local wrappers only when needed.
+HEADER_BASE="/usr/src/linux-headers-${KVER%%-rpi-*}-common-rpi/include/linux"
+PHY_H="$KDIR/include/linux/phy.h"
+[[ -f "$PHY_H" ]] || PHY_H="$HEADER_BASE/phy.h"
+[[ -f "$PHY_H" ]] || t1s_die "Could not locate target phy.h"
+
+if ! grep -q 'genphy_read_mmd_c45' "$PHY_H"; then
+    t1s_warn "Target kernel lacks genphy_*_mmd_c45 helpers; using local direct-C45 wrappers."
+    python3 - "$OUT/microchip_t1s.c" <<'PY'
+from pathlib import Path
+import sys
+
+p = Path(sys.argv[1])
+s = p.read_text()
+marker = '#define LAN867X_REG_STS2 0x0019\\n'
+wrapper = r'''#define LAN867X_REG_STS2 0x0019
+
+static int microchip_t1s_read_mmd_c45(struct phy_device *phydev, int devnum,
+                                      u16 regnum)
+{
+    return mdiobus_c45_read(phydev->mdio.bus, phydev->mdio.addr,
+                            devnum, regnum);
+}
+
+static int microchip_t1s_write_mmd_c45(struct phy_device *phydev, int devnum,
+                                       u16 regnum, u16 val)
+{
+    return mdiobus_c45_write(phydev->mdio.bus, phydev->mdio.addr,
+                             devnum, regnum, val);
+}
+'''
+if marker not in s:
+    raise SystemExit('Could not locate Microchip PHY insertion point')
+s = s.replace(marker, wrapper, 1)
+s = s.replace('.read_mmd           = genphy_read_mmd_c45,',
+              '.read_mmd           = microchip_t1s_read_mmd_c45,')
+s = s.replace('.write_mmd          = genphy_write_mmd_c45,',
+              '.write_mmd          = microchip_t1s_write_mmd_c45,')
+p.write_text(s)
+PY
+fi
 
 cat > "$OUT/Makefile" <<'EOF'
 obj-m := lan865x.o microchip_t1s.o
