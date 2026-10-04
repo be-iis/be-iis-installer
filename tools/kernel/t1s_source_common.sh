@@ -7,6 +7,7 @@
 # upstream S2500 patch series is downloaded with b4 and applied to a tiny local
 # snapshot containing only files touched by that series.
 
+ADIN1140_BASE_COMMIT="20e69e671070ab0b712b34a0e8977e8a402aa5eb"
 S2500_SERIES_VERSION="v8"
 S2500_BASE_COMMIT="014d795c73837ea2339a4ea8e8f82c6e959b845d"
 S2500_SERIES_MSGID="20260928-s2500-mac-phy-support-v8-0-7e011aacc309@onsemi.com"
@@ -183,6 +184,30 @@ t1s_prepare_upstream_v8() {
     printf '%s\n' "$tree"
 }
 
+
+t1s_prepare_adin1140_upstream() {
+    local repo_root="$1"
+    local tree="$repo_root/build/t1s-source/upstream-adin1140"
+    local base="https://raw.githubusercontent.com/torvalds/linux/$ADIN1140_BASE_COMMIT"
+    local path
+
+    t1s_require wget
+    rm -rf "$tree"
+    mkdir -p "$tree"
+
+    for path in \
+        include/linux/oa_tc6.h \
+        drivers/net/ethernet/oa_tc6.c \
+        drivers/net/ethernet/adi/adin1140.c \
+        drivers/net/phy/adin1140-phy.c
+    do
+        t1s_fetch "$base/$path" "$tree/$path" ||
+            t1s_die "Required ADIN1140 upstream source not found: $path"
+    done
+
+    printf '%s\n' "$tree"
+}
+
 t1s_prepare_source() {
     local repo_root="$1" target="$2" kver="${3:-$(uname -r)}"
     local branch tree
@@ -196,12 +221,18 @@ t1s_prepare_source() {
         return
     fi
 
+    if [[ "$target" = "adin1140" ]]; then
+        t1s_warn "Raspberry Pi $branch does not provide the ADIN1140 driver/API set."
+        t1s_warn "Using the dedicated upstream ADIN1140 baseline $ADIN1140_BASE_COMMIT."
+        t1s_warn "No S2500 sources and no b4 are used for the ADI build."
+        t1s_prepare_adin1140_upstream "$repo_root"
+        return
+    fi
+
     t1s_warn "Raspberry Pi $branch lacks $target and/or the S2500-generation OA-TC6 feature set."
     t1s_warn "Fetching only the files touched by the upstream S2500 $S2500_SERIES_VERSION series."
     t1s_warn "No complete Raspberry Pi or Linux kernel tree will be cloned."
 
-    # The fallback patch series is assembled by b4. Check this here, outside
-    # command substitution, so a missing dependency terminates cleanly.
     if ! command -v b4 >/dev/null 2>&1; then
         t1s_die "Required command not found: b4 (install with: sudo apt install b4)"
     fi
@@ -212,9 +243,6 @@ t1s_prepare_source() {
     [[ -n "$tree" && "$tree" = "$repo_root/"* ]] ||
         t1s_die "Invalid T1S source directory returned: '$tree'"
 
-    # The S2500 series contains the common OA-TC6 baseline. ADIN1140 and
-    # LAN865x may already be present at the selected base; if not, fetch just
-    # their driver files from current upstream.
     if ! t1s_has_target "$tree" "$target"; then
         local raw="https://raw.githubusercontent.com/torvalds/linux/master" path
         while IFS= read -r path; do
