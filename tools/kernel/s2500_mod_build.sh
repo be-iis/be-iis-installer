@@ -53,8 +53,11 @@ done
 
 HEADER_BASE="/usr/src/linux-headers-${KVER%%-rpi-*}-common-rpi/include/linux"
 NETDEV_H="$KDIR/include/linux/netdevice.h"
+PHY_H="$KDIR/include/linux/phy.h"
 [[ -f "$NETDEV_H" ]] || NETDEV_H="$HEADER_BASE/netdevice.h"
+[[ -f "$PHY_H" ]] || PHY_H="$HEADER_BASE/phy.h"
 [[ -f "$NETDEV_H" ]] || t1s_die "Could not locate target netdevice.h"
+[[ -f "$PHY_H" ]] || t1s_die "Could not locate target phy.h"
 
 if ! grep -q 'ndo_set_rx_mode_async' "$NETDEV_H"; then
     t1s_warn "Target kernel has no ndo_set_rx_mode_async; adding legacy workqueue compatibility."
@@ -263,6 +266,65 @@ if remove_marker in s:
 main.write_text(s)
 hdr.write_text(h)
 PY
+fi
+
+# Backport only the NCN26000 PHY helpers that are absent from the target
+# kernel. Newer kernels keep the original onsemi-v8 PHY implementation.
+if ! grep -q 'phy_id_compare_model' "$PHY_H"; then
+    t1s_warn "Target kernel lacks phy_id_compare_model; using legacy model-mask comparison."
+    sed -i 's/phy_id_compare_model(phydev->drv->phy_id, PHY_ID_NCN26000)/phy_id_compare(phydev->drv->phy_id, PHY_ID_NCN26000, GENMASK(31, 4))/' "$OUT/ncn26000.c"
+fi
+
+if ! grep -q 'genphy_loopback_fixed_speed' "$PHY_H"; then
+    t1s_warn "Target kernel lacks genphy_loopback_fixed_speed; using legacy genphy_loopback."
+    sed -i 's/\.set_loopback[[:space:]]*=[[:space:]]*genphy_loopback_fixed_speed,/\.set_loopback          = genphy_loopback,/' "$OUT/ncn26000.c"
+fi
+
+if ! grep -q 'genphy_read_mmd_c45' "$PHY_H"; then
+    t1s_warn "Target kernel lacks genphy_*_mmd_c45 helpers; using local NCN26000 direct-C45 wrappers."
+    python3 - "$OUT/ncn26000.c" <<'PY'
+from pathlib import Path
+import sys
+
+p = Path(sys.argv[1])
+s = p.read_text()
+include_line = '#include <linux/phy.h>'
+wrapper = r'''
+
+/* Compatibility helpers for kernels without genphy_*_mmd_c45(). */
+static int ncn26000_read_mmd_c45(struct phy_device *phydev, int devnum,
+                                 u16 regnum)
+{
+    return mdiobus_c45_read(phydev->mdio.bus, phydev->mdio.addr,
+                            devnum, regnum);
+}
+
+static int ncn26000_write_mmd_c45(struct phy_device *phydev, int devnum,
+                                  u16 regnum, u16 val)
+{
+    return mdiobus_c45_write(phydev->mdio.bus, phydev->mdio.addr,
+                             devnum, regnum, val);
+}
+'''
+if include_line not in s:
+    raise SystemExit('Could not locate linux/phy.h include in NCN26000 source')
+s = s.replace(include_line, include_line + wrapper, 1)
+s = s.replace('= genphy_read_mmd_c45,', '= ncn26000_read_mmd_c45,')
+s = s.replace('= genphy_write_mmd_c45,', '= ncn26000_write_mmd_c45,')
+if 'ncn26000_read_mmd_c45,' not in s:
+    raise SystemExit('Could not patch NCN26000 read_mmd callback')
+if 'ncn26000_write_mmd_c45,' not in s:
+    raise SystemExit('Could not patch NCN26000 write_mmd callback')
+p.write_text(s)
+PY
+fi
+
+if ! grep -q 'genphy_c45_oatc14_get_sqi' "$PHY_H"; then
+    t1s_warn "Target kernel lacks OATC14 cable-test/SQI helpers; disabling those optional NCN26000 callbacks."
+    sed -i '/^[[:space:]]*\.get_sqi[[:space:]]*=[[:space:]]*genphy_c45_oatc14_get_sqi,/d' "$OUT/ncn26000.c"
+    sed -i '/^[[:space:]]*\.get_sqi_max[[:space:]]*=[[:space:]]*genphy_c45_oatc14_get_sqi_max,/d' "$OUT/ncn26000.c"
+    sed -i '/^[[:space:]]*\.cable_test_get_status[[:space:]]*=[[:space:]]*genphy_c45_oatc14_cable_test_get_status,/d' "$OUT/ncn26000.c"
+    sed -i '/^[[:space:]]*\.cable_test_start[[:space:]]*=[[:space:]]*genphy_c45_oatc14_cable_test_start,/d' "$OUT/ncn26000.c"
 fi
 
 cat > "$OUT/Makefile" <<'EOF'
