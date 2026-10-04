@@ -12,9 +12,16 @@ OUT="$REPO_ROOT/build/s2500"
 
 [[ -d "$KDIR" ]] || t1s_die "Kernel headers not found: $KDIR"
 
-if modinfo s2500 >/dev/null 2>&1; then
+# Skip the external build when the running kernel already provides the
+# driver. FORCE_BUILD=1 is intended for development and compatibility tests.
+if modinfo s2500 >/dev/null 2>&1 && [[ "${FORCE_BUILD:-0}" != "1" ]]; then
     t1s_note "Running kernel already provides s2500."
+    t1s_note "Use FORCE_BUILD=1 to build the external S2500 module anyway."
     exit 0
+fi
+
+if [[ "${FORCE_BUILD:-0}" == "1" ]]; then
+    t1s_note "FORCE_BUILD=1: building external S2500 module even if the kernel provides one."
 fi
 
 t1s_ensure_tc6_build "$REPO_ROOT"
