@@ -20,7 +20,7 @@ rm -rf "$OUT"; mkdir -p "$OUT/include/linux"
 
 cp "$SRC/drivers/net/ethernet/adi/adin1140.c" "$OUT/"
 cp "$SRC/drivers/net/phy/adin1140-phy.c" "$OUT/"
-cp "$SRC/include/linux/oa_tc6.h" "$OUT/include/linux/"
+cp "$SRC/include/linux/oa_tc6.h" "$OUT/oa_tc6_local.h"
 if [[ -f "$SRC/drivers/net/ethernet/oa_tc6.c" ]]; then
     cp "$SRC/drivers/net/ethernet/oa_tc6.c" "$OUT/oa_tc6_core.c"
 else
@@ -30,12 +30,18 @@ else
     cp "$SRC/drivers/net/ethernet/oa_tc6/oa_tc6_std_def.h" "$OUT/" 2>/dev/null || true
 fi
 
+# The running 6.12 kernel can already contain an older <linux/oa_tc6.h>.
+# Force this out-of-tree source set to use the header from the same upstream
+# revision as oa_tc6.c/adin1140.c, otherwise the OA-TC6 API is mixed.
+sed -i 's@#include <linux/oa_tc6.h>@#include "oa_tc6_local.h"@' \
+    "$OUT/oa_tc6_core.c" "$OUT/adin1140.c"
+
 cat > "$OUT/Makefile" <<'EOF'
 obj-m := oa_tc6.o adin1140.o adin1140-phy.o
 oa_tc6-y := oa_tc6_core.o
 oa_tc6-y += $(if $(wildcard $(M)/oa_tc6_ptp.c),oa_tc6_ptp.o)
 oa_tc6-y += $(if $(wildcard $(M)/oa_tc6_tstamp.c),oa_tc6_tstamp.o)
-ccflags-y += -I$(M)/include
+ccflags-y += -I$(M)
 EOF
 
 make -C "$KDIR" M="$OUT" modules || t1s_die "Build failed; update the Raspberry Pi kernel rather than mixing an older OA-TC6 API."
