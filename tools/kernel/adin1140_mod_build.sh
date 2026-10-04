@@ -21,10 +21,14 @@ rm -rf "$OUT"; mkdir -p "$OUT/include/linux"
 cp "$SRC/drivers/net/ethernet/adi/adin1140.c" "$OUT/"
 cp "$SRC/drivers/net/phy/adin1140-phy.c" "$OUT/"
 cp "$SRC/include/linux/oa_tc6.h" "$OUT/include/linux/"
-cp "$SRC/drivers/net/ethernet/oa_tc6/oa_tc6.c" "$OUT/oa_tc6_core.c"
-cp "$SRC/drivers/net/ethernet/oa_tc6/oa_tc6_ptp.c" "$OUT/" 2>/dev/null || true
-cp "$SRC/drivers/net/ethernet/oa_tc6/oa_tc6_tstamp.c" "$OUT/" 2>/dev/null || true
-cp "$SRC/drivers/net/ethernet/oa_tc6/oa_tc6_std_def.h" "$OUT/" 2>/dev/null || true
+if [[ -f "$SRC/drivers/net/ethernet/oa_tc6.c" ]]; then
+    cp "$SRC/drivers/net/ethernet/oa_tc6.c" "$OUT/oa_tc6_core.c"
+else
+    cp "$SRC/drivers/net/ethernet/oa_tc6/oa_tc6.c" "$OUT/oa_tc6_core.c"
+    cp "$SRC/drivers/net/ethernet/oa_tc6/oa_tc6_ptp.c" "$OUT/" 2>/dev/null || true
+    cp "$SRC/drivers/net/ethernet/oa_tc6/oa_tc6_tstamp.c" "$OUT/" 2>/dev/null || true
+    cp "$SRC/drivers/net/ethernet/oa_tc6/oa_tc6_std_def.h" "$OUT/" 2>/dev/null || true
+fi
 
 cat > "$OUT/Makefile" <<'EOF'
 obj-m := oa_tc6.o adin1140.o adin1140-phy.o
