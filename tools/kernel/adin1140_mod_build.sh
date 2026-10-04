@@ -31,6 +31,24 @@ t1s_fetch_upstream_file "$ADIN1140_BASE_COMMIT"     "drivers/net/phy/adin1140-ph
 cp "$TC6/include/linux/oa_tc6.h" "$OUT/oa_tc6_local.h"
 sed -i 's@#include <linux/oa_tc6.h>@#include "oa_tc6_local.h"@' "$OUT/adin1140.c"
 
+# Backport compatibility for older Raspberry Pi kernels such as 6.12.
+# Detect API features from the actual target headers instead of guessing from
+# uname version numbers.
+NETDEV_H="$KDIR/include/linux/netdevice.h"
+
+if ! grep -q 'ndo_set_rx_mode_async' "$NETDEV_H"; then
+    t1s_warn "Target kernel has no ndo_set_rx_mode_async; disabling runtime RX-filter updates."
+    t1s_warn "Basic unicast/broadcast operation remains available; promisc/multicast filter changes are limited."
+    sed -i '/^[[:space:]]*\.ndo_set_rx_mode_async[[:space:]]*=/d' "$OUT/adin1140.c"
+    # Avoid an unused-static-function warning after removing the only callback.
+    sed -i 's/^static int adin1140_rx_mode(/static __maybe_unused int adin1140_rx_mode(/' "$OUT/adin1140.c"
+fi
+
+if ! grep -q 'netns_immutable' "$NETDEV_H"; then
+    t1s_warn "Target kernel has no netns_immutable field; omitting that assignment."
+    sed -i '/^[[:space:]]*netdev->netns_immutable[[:space:]]*=/d' "$OUT/adin1140.c"
+fi
+
 cat > "$OUT/Makefile" <<'EOF'
 obj-m := adin1140.o adin1140-phy.o
 ccflags-y += -I$(M)
