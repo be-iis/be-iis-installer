@@ -11,17 +11,8 @@ OUT="$REPO_ROOT/build/oa_tc6"
 
 [[ -d "$KDIR" ]] || t1s_die "Kernel headers not found: $KDIR"
 
-# If the running kernel already contains a sufficiently new OA-TC6 framework,
-# use it directly. Otherwise build the common BE-IIS backport once.
-if modinfo oa_tc6 >/dev/null 2>&1 &&
-   grep -q 'oa_tc6_read_register_mms' "$KDIR/include/linux/oa_tc6.h" 2>/dev/null &&
-   grep -q 'OA_TC6_BROKEN_PHY' "$KDIR/include/linux/oa_tc6.h" 2>/dev/null; then
-    t1s_note "Running kernel already provides the required OA-TC6 API."
-    exit 0
-fi
-
-t1s_warn "Kernel OA-TC6 is missing or too old."
-t1s_warn "Building one shared OA-TC6 backport for all BE-IIS T1S drivers."
+t1s_note "Building the shared BE-IIS OA-TC6 module for all T1S drivers."
+t1s_note "The running kernel's oa_tc6 module is intentionally not used for vendor builds."
 
 SRC="$(t1s_prepare_s2500_v8_minimal "$REPO_ROOT")"
 
