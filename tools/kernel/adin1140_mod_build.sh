@@ -12,9 +12,16 @@ OUT="$REPO_ROOT/build/adin1140"
 
 [[ -d "$KDIR" ]] || t1s_die "Kernel headers not found: $KDIR"
 
-if modinfo adin1140 >/dev/null 2>&1; then
+# Skip the external build when the running kernel already provides the
+# driver. FORCE_BUILD=1 is intended for development and compatibility tests.
+if modinfo adin1140 >/dev/null 2>&1 && [[ "${FORCE_BUILD:-0}" != "1" ]]; then
     t1s_note "Running kernel already provides adin1140."
+    t1s_note "Use FORCE_BUILD=1 to build the external ADIN1140 module anyway."
     exit 0
+fi
+
+if [[ "${FORCE_BUILD:-0}" == "1" ]]; then
+    t1s_note "FORCE_BUILD=1: building external ADIN1140 module even if the kernel provides one."
 fi
 
 t1s_ensure_tc6_build "$REPO_ROOT"
