@@ -11,13 +11,30 @@ OUT="$REPO_ROOT/build/oa_tc6"
 
 [[ -d "$KDIR" ]] || t1s_die "Kernel headers not found: $KDIR"
 
-t1s_note "Building the shared BE-IIS OA-TC6 module for all T1S drivers."
-t1s_note "The running kernel's oa_tc6 module is intentionally not used for vendor builds."
-
-SRC="$(t1s_prepare_s2500_v8_minimal "$REPO_ROOT")"
-
 rm -rf "$OUT"
 mkdir -p "$OUT/include/linux"
+
+# Prefer the target kernel's own OA-TC6 implementation when it already
+# provides the modern API required by the pinned T1S vendor drivers.
+if [[ "${FORCE_TC6_BACKPORT:-0}" != "1" ]] &&
+   t1s_native_tc6_is_usable "$KDIR" "$KVER"; then
+    NATIVE_HEADER="$(t1s_find_kernel_header "$KDIR" "$KVER" oa_tc6.h)"
+    cp "$NATIVE_HEADER" "$OUT/include/linux/oa_tc6.h"
+    printf '%s\n' "$KVER" > "$OUT/.kernel-release"
+    touch "$OUT/.native"
+
+    t1s_note "Using native OA-TC6 from kernel $KVER."
+    t1s_note "No external OA-TC6 module will be built."
+    exit 0
+fi
+
+if [[ "${FORCE_TC6_BACKPORT:-0}" == "1" ]]; then
+    t1s_note "FORCE_TC6_BACKPORT=1: building the pinned external OA-TC6 backport."
+else
+    t1s_note "Native OA-TC6 is missing or too old; building the pinned external backport."
+fi
+
+SRC="$(t1s_prepare_s2500_v8_minimal "$REPO_ROOT")"
 
 cp "$SRC/include/linux/oa_tc6.h" "$OUT/include/linux/oa_tc6.h"
 cp "$SRC/drivers/net/ethernet/oa_tc6/oa_tc6.c" "$OUT/oa_tc6_core.c"
@@ -44,7 +61,10 @@ make -C "$KDIR" M="$OUT" modules ||
 [[ -f "$OUT/oa_tc6.ko" ]] || t1s_die "oa_tc6.ko was not created"
 [[ -f "$OUT/Module.symvers" ]] || t1s_die "OA-TC6 Module.symvers was not created"
 
-t1s_note "Built shared OA-TC6 module:"
+printf '%s\n' "$KVER" > "$OUT/.kernel-release"
+touch "$OUT/.external"
+
+t1s_note "Built external OA-TC6 backport:"
 t1s_note "  $OUT/oa_tc6.ko"
 t1s_note "Vendor T1S drivers can now build against:"
 t1s_note "  $OUT/include/linux/oa_tc6.h"
