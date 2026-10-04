@@ -46,20 +46,60 @@ t1s_prepare_s2500_v8_minimal() {
     mbox="$(find "$work" -maxdepth 1 -type f \( -name '*.mbx' -o -name '*.mbox' \) | head -n1)"
     [[ -n "$mbox" ]] || t1s_die "b4 did not produce an S2500 patch mbox"
 
-    base_url="https://git.kernel.org/pub/scm/linux/kernel/git/netdev/net-next.git/plain"
+    base_url="https://raw.githubusercontent.com/torvalds/linux/$S2500_BASE_COMMIT"
 
+    # Seed the minimal git tree with every *existing* file touched by the
+    # series. Parse diff headers as well as ---/+++ because pure renames do not
+    # necessarily carry normal patch file markers.
     while IFS= read -r path; do
         [[ -n "$path" ]] || continue
         mkdir -p "$tree/$(dirname "$path")"
-        if wget -q -O "$tree/$path.tmp" "$base_url/$path?id=$S2500_BASE_COMMIT" 2>/dev/null; then
+        if wget -q -O "$tree/$path.tmp" "$base_url/$path" 2>/dev/null; then
             mv "$tree/$path.tmp" "$tree/$path"
         else
+            # New files in the series do not exist at the base commit.
             rm -f "$tree/$path.tmp"
         fi
     done < <(
-        grep -hE '^(---|\+\+\+) [ab]/' "$mbox" |
-        sed -E 's#^(---|\+\+\+) [ab]/##' |
-        grep -v '^/dev/null$' |
+        {
+            grep -hE '^diff --git a/[^ ]+ b/[^ ]+' "$mbox" |
+                sed -E 's#^diff --git a/([^ ]+) b/([^ ]+)$#\1\n\2#'
+            grep -hE '^(---|\+\+\+) [ab]/' "$mbox" |
+                sed -E 's#^(---|\+\+\+) [ab]/##'
+        } |
+        grep -v '^/dev/null
+    git -C "$tree" init -q
+    git -C "$tree" config user.name "BE-IIS T1S build"
+    git -C "$tree" config user.email "build@localhost"
+    git -C "$tree" add -A
+    git -C "$tree" commit -q --allow-empty -m "minimal S2500 base snapshot"
+
+    git -C "$tree" am "$mbox" >/dev/null || {
+        git -C "$tree" am --abort >/dev/null 2>&1 || true
+        t1s_die "Could not apply S2500 $S2500_SERIES_VERSION series"
+    }
+
+    printf '%s\n' "$tree"
+}
+
+t1s_ensure_tc6_build() {
+    local repo_root="$1"
+    local build="$repo_root/build/oa_tc6"
+
+    if [[ ! -f "$build/oa_tc6.ko" || ! -f "$build/Module.symvers" || ! -f "$build/include/linux/oa_tc6.h" ]]; then
+        "$repo_root/tools/kernel/oa_tc6_mod_build.sh"
+    fi
+
+    [[ -f "$build/oa_tc6.ko" ]] || t1s_die "oa_tc6.ko missing after OA-TC6 build"
+    [[ -f "$build/Module.symvers" ]] || t1s_die "OA-TC6 Module.symvers missing"
+    [[ -f "$build/include/linux/oa_tc6.h" ]] || t1s_die "OA-TC6 header missing"
+}
+
+t1s_fetch_upstream_file() {
+    local commit="$1" path="$2" dst="$3"
+    t1s_fetch "https://raw.githubusercontent.com/torvalds/linux/$commit/$path" "$dst"
+}
+ |
         sort -u
     )
 
