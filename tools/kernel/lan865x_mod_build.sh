@@ -81,6 +81,10 @@ s = s.replace('.read_mmd           = genphy_read_mmd_c45,',
               '.read_mmd           = microchip_t1s_read_mmd_c45,')
 s = s.replace('.write_mmd          = genphy_write_mmd_c45,',
               '.write_mmd          = microchip_t1s_write_mmd_c45,')
+if '.read_mmd           = microchip_t1s_read_mmd_c45,' not in s:
+    raise SystemExit('Could not patch Microchip read_mmd callback')
+if '.write_mmd          = microchip_t1s_write_mmd_c45,' not in s:
+    raise SystemExit('Could not patch Microchip write_mmd callback')
 p.write_text(s)
 PY
 fi
