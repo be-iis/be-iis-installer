@@ -87,7 +87,7 @@ t1s_ensure_tc6_build() {
     local build="$repo_root/build/oa_tc6"
 
     if [[ ! -f "$build/oa_tc6.ko" || ! -f "$build/Module.symvers" || ! -f "$build/include/linux/oa_tc6.h" ]]; then
-        "$repo_root/tools/kernel/oa_tc6_mod_build.sh"
+        bash "$repo_root/tools/kernel/oa_tc6_mod_build.sh"
     fi
 
     [[ -f "$build/oa_tc6.ko" ]] || t1s_die "oa_tc6.ko missing after OA-TC6 build"
