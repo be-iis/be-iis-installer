@@ -91,6 +91,17 @@ p.write_text(s)
 PY
 fi
 
+# OATC14 cable diagnostics and SQI helpers are newer than the 6.12 PHY API.
+# They are only used by the LAN867x Rev.D0 entry. Keep them on kernels that
+# provide the helpers and omit only those optional callbacks on older kernels.
+if ! grep -q 'genphy_c45_oatc14_cable_test_start' "$PHY_H"; then
+    t1s_warn "Target kernel lacks OATC14 cable-test/SQI helpers; disabling those optional LAN867x Rev.D0 callbacks."
+    sed -i '/^[[:space:]]*\.cable_test_start[[:space:]]*= genphy_c45_oatc14_cable_test_start,/d' "$OUT/microchip_t1s.c"
+    sed -i '/^[[:space:]]*\.cable_test_get_status[[:space:]]*= genphy_c45_oatc14_cable_test_get_status,/d' "$OUT/microchip_t1s.c"
+    sed -i '/^[[:space:]]*\.get_sqi[[:space:]]*= genphy_c45_oatc14_get_sqi,/d' "$OUT/microchip_t1s.c"
+    sed -i '/^[[:space:]]*\.get_sqi_max[[:space:]]*= genphy_c45_oatc14_get_sqi_max,/d' "$OUT/microchip_t1s.c"
+fi
+
 cat > "$OUT/Makefile" <<'EOF'
 obj-m := lan865x.o microchip_t1s.o
 ccflags-y += -I$(M)
