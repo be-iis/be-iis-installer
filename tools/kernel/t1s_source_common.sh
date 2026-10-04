@@ -142,7 +142,9 @@ t1s_prepare_upstream_v8() {
     mkdir -p "$tree" "$work"
 
     t1s_note "Downloading S2500 $S2500_SERIES_VERSION patch series (no kernel clone)." >&2
-    (cd "$work" && b4 am -o . "$S2500_SERIES_MSGID" >/dev/null)
+    if ! (cd "$work" && b4 am -o . "$S2500_SERIES_MSGID" >/dev/null); then
+        t1s_die "b4 could not download the S2500 $S2500_SERIES_VERSION patch series"
+    fi
     mbox="$(find "$work" -maxdepth 1 -type f \( -name '*.mbx' -o -name '*.mbox' \) | head -n1)"
     [[ -n "$mbox" ]] || t1s_die "b4 did not produce an S2500 patch mbox"
 
@@ -198,7 +200,17 @@ t1s_prepare_source() {
     t1s_warn "Fetching only the files touched by the upstream S2500 $S2500_SERIES_VERSION series."
     t1s_warn "No complete Raspberry Pi or Linux kernel tree will be cloned."
 
-    tree="$(t1s_prepare_upstream_v8 "$repo_root")"
+    # The fallback patch series is assembled by b4. Check this here, outside
+    # command substitution, so a missing dependency terminates cleanly.
+    if ! command -v b4 >/dev/null 2>&1; then
+        t1s_die "Required command not found: b4 (install with: sudo apt install b4)"
+    fi
+
+    if ! tree="$(t1s_prepare_upstream_v8 "$repo_root")"; then
+        t1s_die "Could not prepare the upstream S2500 $S2500_SERIES_VERSION source set"
+    fi
+    [[ -n "$tree" && "$tree" = "$repo_root/"* ]] ||
+        t1s_die "Invalid T1S source directory returned: '$tree'"
 
     # The S2500 series contains the common OA-TC6 baseline. ADIN1140 and
     # LAN865x may already be present at the selected base; if not, fetch just
