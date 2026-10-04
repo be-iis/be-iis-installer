@@ -45,11 +45,165 @@ PHY_H="$KDIR/include/linux/phy.h"
 [[ -f "$PHY_H" ]] || t1s_die "Could not locate target phy.h"
 
 if ! grep -q 'ndo_set_rx_mode_async' "$NETDEV_H"; then
-    t1s_warn "Target kernel has no ndo_set_rx_mode_async; disabling runtime RX-filter updates."
-    t1s_warn "Basic unicast/broadcast operation remains available; promisc/multicast filter changes are limited."
-    sed -i '/^[[:space:]]*\.ndo_set_rx_mode_async[[:space:]]*=/d' "$OUT/adin1140.c"
-    # Avoid an unused-static-function warning after removing the only callback.
-    sed -i 's/^static int adin1140_rx_mode(/static __maybe_unused int adin1140_rx_mode(/' "$OUT/adin1140.c"
+    t1s_warn "Target kernel has no ndo_set_rx_mode_async; adding legacy workqueue compatibility."
+    python3 - "$OUT/adin1140.c" <<'PY'
+from pathlib import Path
+import sys
+
+p = Path(sys.argv[1])
+s = p.read_text()
+
+old_member = '''\tstruct delayed_work stats_work;\n'''
+new_member = '''\tstruct delayed_work stats_work;
+\tstruct work_struct rx_mode_work;
+'''
+if old_member not in s:
+    raise SystemExit('Could not locate adin1140_priv work members')
+s = s.replace(old_member, new_member, 1)
+
+rx_start = s.index('static int adin1140_rx_mode(struct net_device *dev,')
+rx_end = s.index('\nstatic void adin1140_stats_work', rx_start)
+rx_func = s[rx_start:rx_end]
+
+compat = r'''
+/*
+ * Older kernels only provide ndo_set_rx_mode(), which is called from an
+ * atomic context where SPI transfers are not allowed to sleep. Defer the
+ * hardware programming to a workqueue and take stable snapshots of the
+ * address lists before accessing the MAC-PHY.
+ */
+struct adin1140_rx_snapshot {
+	u8 uc[ADIN1140_MAC_FILT_AVAIL][ETH_ALEN];
+	u8 mc[ADIN1140_MAC_FILT_AVAIL][ETH_ALEN];
+	u8 uc_count;
+	u8 mc_count;
+	bool uc_overflow;
+	bool mc_overflow;
+	unsigned int flags;
+};
+
+static void adin1140_rx_mode_work(struct work_struct *work)
+{
+	struct adin1140_priv *priv =
+		container_of(work, struct adin1140_priv, rx_mode_work);
+	struct adin1140_rx_snapshot snap = {};
+	struct net_device *dev = priv->netdev;
+	struct netdev_hw_addr *ha;
+	bool all_multi, promisc;
+	u32 mac_addrs;
+	u8 slot, i;
+	int ret;
+
+	/*
+	 * The legacy address lists are protected by addr_list_lock. Copy only
+	 * the small number of addresses the hardware can actually program, then
+	 * release the spinlock before issuing any sleeping OA-TC6/SPI access.
+	 */
+	netif_addr_lock_bh(dev);
+	snap.flags = dev->flags;
+
+	netdev_for_each_uc_addr(ha, dev) {
+		if (snap.uc_count < ADIN1140_MAC_FILT_AVAIL)
+			ether_addr_copy(snap.uc[snap.uc_count++], ha->addr);
+		else
+			snap.uc_overflow = true;
+	}
+
+	netdev_for_each_mc_addr(ha, dev) {
+		if (snap.mc_count < ADIN1140_MAC_FILT_AVAIL)
+			ether_addr_copy(snap.mc[snap.mc_count++], ha->addr);
+		else
+			snap.mc_overflow = true;
+	}
+	netif_addr_unlock_bh(dev);
+
+	mac_addrs = snap.uc_count;
+	all_multi = false;
+	promisc = false;
+
+	if (snap.flags & IFF_PROMISC)
+		promisc = true;
+	else if (snap.flags & IFF_ALLMULTI)
+		all_multi = true;
+	else
+		mac_addrs += snap.mc_count;
+
+	if (snap.uc_overflow || snap.mc_overflow ||
+	    mac_addrs > ADIN1140_MAC_FILT_AVAIL)
+		promisc = true;
+
+	ret = adin1140_promiscuous_mode(priv, promisc);
+	if (ret)
+		return;
+
+	ret = adin1140_filter_all_multicast(priv, all_multi);
+	if (ret)
+		return;
+
+	slot = ADIN1140_MAC_FILT_UC_SLOT + 1;
+	if (!promisc) {
+		for (i = 0; i < snap.uc_count; i++) {
+			ret = adin1140_mac_filter_set(priv, snap.uc[i], NULL, slot++);
+			if (ret)
+				return;
+		}
+
+		if (!all_multi) {
+			for (i = 0; i < snap.mc_count; i++) {
+				ret = adin1140_mac_filter_set(priv, snap.mc[i], NULL,
+							      slot++);
+				if (ret)
+					return;
+			}
+		}
+	}
+
+	for (i = slot; i < ADIN1140_MAC_FILT_MAX_SLOT; i++) {
+		ret = adin1140_mac_filter_clear(priv, i);
+		if (ret)
+			return;
+	}
+}
+
+static void adin1140_set_rx_mode_legacy(struct net_device *dev)
+{
+	struct adin1140_priv *priv = netdev_priv(dev);
+
+	schedule_work(&priv->rx_mode_work);
+}
+'''
+
+s = s[:rx_end] + compat + s[rx_end:]
+
+old_op = '\t.ndo_set_rx_mode_async = adin1140_rx_mode,\n'
+new_op = '\t.ndo_set_rx_mode = adin1140_set_rx_mode_legacy,\n'
+if old_op not in s:
+    raise SystemExit('Could not locate ndo_set_rx_mode_async assignment')
+s = s.replace(old_op, new_op, 1)
+
+old_init = '\tINIT_DELAYED_WORK(&priv->stats_work, adin1140_stats_work);\n'
+new_init = '''\tINIT_DELAYED_WORK(&priv->stats_work, adin1140_stats_work);
+\tINIT_WORK(&priv->rx_mode_work, adin1140_rx_mode_work);
+'''
+if old_init not in s:
+    raise SystemExit('Could not locate ADIN1140 work initialization')
+s = s.replace(old_init, new_init, 1)
+
+old_close = '\tcancel_delayed_work_sync(&priv->stats_work);\n'
+new_close = '''\tcancel_delayed_work_sync(&priv->stats_work);
+\tcancel_work_sync(&priv->rx_mode_work);
+'''
+if old_close not in s:
+    raise SystemExit('Could not locate ADIN1140 close work cancellation')
+s = s.replace(old_close, new_close, 1)
+
+# The upstream async implementation is not referenced on legacy kernels.
+s = s.replace('static int adin1140_rx_mode(struct net_device *dev,',
+              'static __maybe_unused int adin1140_rx_mode(struct net_device *dev,',
+              1)
+
+p.write_text(s)
+PY
 fi
 
 if ! grep -q 'netns_immutable' "$NETDEV_H"; then
