@@ -79,7 +79,34 @@ say "$STEP" "Running kernel: $KVER"
 say "$STEP" "Kernel build directory: $KDIR"
 
 STEP="STEP2"
-say "$STEP" "Checking whether the build environment is already present"
+say "$STEP" "Installing required build tools"
+
+fix_dpkg_if_needed
+
+say "$STEP" "Updating package lists"
+sudo apt update
+
+# Keep common installer/build dependencies here. Product-specific build
+# scripts should not require users to discover missing host tools manually.
+sudo apt install -y \
+    build-essential \
+    make \
+    gcc \
+    libc6-dev \
+    pkg-config \
+    wget \
+    curl \
+    git \
+    b4 \
+    bc \
+    kmod \
+    device-tree-compiler \
+    automake \
+    autoconf \
+    libtool
+
+STEP="STEP3"
+say "$STEP" "Checking kernel headers"
 
 if build_tree_ready "$KDIR"; then
     say "$STEP" "Kernel build environment already available"
@@ -87,37 +114,15 @@ else
     say "$STEP" "Kernel build environment missing"
 
     HEADER_PKG="$(detect_header_pkg "$KVER")" || die "Unsupported Raspberry Pi kernel flavour: $KVER"
-
     say "$STEP" "Detected header package: $HEADER_PKG"
-
-    fix_dpkg_if_needed
-
-    say "$STEP" "Updating package lists"
-    sudo apt update
-
-    say "$STEP" "Installing build tools and kernel headers"
-    sudo apt install -y \
-        build-essential \
-        make \
-        gcc \
-        libc6-dev \
-        pkg-config \
-        wget \
-        curl \
-        bc \
-        kmod \
-        automake \
-        autoconf \
-        libtool \
-        pkg-config \
-        "$HEADER_PKG"
+    sudo apt install -y "$HEADER_PKG"
 
     if ! build_tree_ready "$KDIR"; then
         die "Kernel build environment is still incomplete after installation: $KDIR"
     fi
 fi
 
-STEP="STEP3"
+STEP="STEP4"
 say "$STEP" "Verifying final build environment"
 
 say "$STEP" "Kernel build environment is ready"
