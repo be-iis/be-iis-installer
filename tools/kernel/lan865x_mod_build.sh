@@ -107,7 +107,13 @@ obj-m := lan865x.o microchip_t1s.o
 ccflags-y += -I$(M)
 EOF
 
-make -C "$KDIR" M="$OUT"     KBUILD_EXTRA_SYMBOLS="$TC6/Module.symvers"     modules || t1s_die "LAN865x build failed against shared OA-TC6 baseline"
+TC6_MAKE_ARGS=()
+if [[ -f "$TC6/.external" ]]; then
+    TC6_MAKE_ARGS+=(KBUILD_EXTRA_SYMBOLS="$TC6/Module.symvers")
+fi
+
+make -C "$KDIR" M="$OUT" "${TC6_MAKE_ARGS[@]}" modules ||
+    t1s_die "LAN865x build failed against shared OA-TC6 baseline"
 
 [[ -f "$OUT/lan865x.ko" ]] || t1s_die "lan865x.ko was not created"
 [[ -f "$OUT/microchip_t1s.ko" ]] || t1s_die "microchip_t1s.ko was not created"
