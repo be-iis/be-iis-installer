@@ -12,9 +12,16 @@ OUT="$REPO_ROOT/build/lan865x"
 
 [[ -d "$KDIR" ]] || t1s_die "Kernel headers not found: $KDIR"
 
-if modinfo lan865x >/dev/null 2>&1; then
+# Skip the external build when the running kernel already provides the
+# driver. FORCE_BUILD=1 is intended for development and compatibility tests.
+if modinfo lan865x >/dev/null 2>&1 && [[ "${FORCE_BUILD:-0}" != "1" ]]; then
     t1s_note "Running kernel already provides lan865x."
+    t1s_note "Use FORCE_BUILD=1 to build the external LAN865x module anyway."
     exit 0
+fi
+
+if [[ "${FORCE_BUILD:-0}" == "1" ]]; then
+    t1s_note "FORCE_BUILD=1: building external LAN865x module even if the kernel provides one."
 fi
 
 t1s_ensure_tc6_build "$REPO_ROOT"
