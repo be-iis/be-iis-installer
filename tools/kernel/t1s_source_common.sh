@@ -153,8 +153,8 @@ t1s_prepare_upstream_v8() {
     local old_paths all_paths
     old_paths="$work/old-paths.txt"
     all_paths="$work/all-paths.txt"
-    grep -hE '^diff --git a/[^ ]+ b/[^ ]+' "$mbox" |
-        sed -E 's#^diff --git a/([^ ]+) b/([^ ]+)$#\\1#' |
+    grep -hE '^--- a/' "$mbox" |
+        sed -E 's#^--- a/##' |
         sort -u > "$old_paths"
     {
         cat "$old_paths"
