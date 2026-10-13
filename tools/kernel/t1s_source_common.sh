@@ -129,9 +129,9 @@ t1s_prepare_rpi_files() {
 }
 
 t1s_prepare_upstream_v8() {
-    local repo_root="$1"
-    local tree="$repo_root/build/t1s-source/net-next-s2500-v8-minimal"
-    local work="$repo_root/build/t1s-source/.s2500-v8"
+    local repo_root="$1" target="${2:-s2500}"
+    local tree="$repo_root/build/t1s-source/net-next-s2500-v8-$target"
+    local work="$repo_root/build/t1s-source/.s2500-v8-$target"
     local mbox path base_url
 
     t1s_require git
@@ -255,7 +255,7 @@ t1s_prepare_source() {
     t1s_warn "Fetching only the files touched by the upstream S2500 $S2500_SERIES_VERSION series."
     t1s_warn "No complete Raspberry Pi or Linux kernel tree will be cloned."
 
-    tree="$(t1s_prepare_upstream_v8 "$repo_root")" || {
+    tree="$(t1s_prepare_upstream_v8 "$repo_root" "$target")" || {
         t1s_warn "S2500 upstream backport source preparation failed; no source tree available."
         return 1
     }
