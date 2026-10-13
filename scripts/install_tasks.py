@@ -192,7 +192,7 @@ def main():
         if code == 0:
             original["backport_built"] = True
             if args.install_built and key == "BE-IIS-HPP-T1S-ONSEMI-REVA":
-                install_cmd = ["sudo", sys.executable, "scripts/install_s2500_modules.py"]
+                install_cmd = ["sudo", "-n", sys.executable, "scripts/install_s2500_modules.py"]
                 install_code, install_log = run_command(install_cmd, retry_progress)
                 states[key].append({"step": "Guarded onsemi module installation",
                                     "command": install_cmd,
