@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
-"""Check native drivers shipped for the running kernel. Never fetch or backport."""
+"""Check installed drivers for the running kernel, without fetching or building."""
 import os
+from pathlib import Path
 import subprocess
 import sys
+
+def info(kernel, module, field):
+    return subprocess.run(["modinfo", "-k", kernel, "-F", field, module],
+                          capture_output=True, text=True, check=False)
 
 def main():
     modules = sys.argv[1:]
@@ -12,21 +17,29 @@ def main():
     kernel = os.uname().release
     missing = []
     for module in modules:
-        result = subprocess.run(["modinfo", "-k", kernel, "-F", "filename", module],
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                text=True, check=False)
+        result = info(kernel, module, "filename")
         location = result.stdout.strip() if result.returncode == 0 else ""
-        native = location == "(builtin)" or (location.startswith(f"/lib/modules/{kernel}/kernel/"))
-        if result.returncode == 0 and native:
-            print(f"OK: {module} provided by running kernel {kernel} ({location})")
+        base = Path("/lib/modules") / kernel
+        path = Path(location)
+        installed = location == "(builtin)" or (
+            result.returncode == 0 and path.is_absolute()
+            and path.is_file() and path.resolve().is_relative_to(base.resolve())
+        )
+        vermagic = info(kernel, module, "vermagic")
+        release = vermagic.stdout.strip().split(maxsplit=1)[0] if vermagic.returncode == 0 and vermagic.stdout.strip() else ""
+        compatible = location == "(builtin)" or release == kernel
+        if installed and compatible:
+            print(f"OK: {module} installed for running kernel {kernel} ({location})")
         else:
-            print(f"ERROR: {module} is not available for kernel {kernel}.")
+            reason = ("not installed" if not installed else
+                      f"module vermagic release {release or 'unknown'} differs from {kernel}")
+            print(f"ERROR: {module}: {reason}")
             missing.append(module)
     if missing:
-        print(f"ERROR: The running kernel {kernel} is too old or was built "
-              "without the required driver(s): " + ", ".join(missing) + ".")
-        print("Install a kernel version that includes these drivers; "
-              "no backport or external kernel sources will be used.")
+        print(f"ERROR: Required modules unavailable for running kernel {kernel}: "
+              + ", ".join(missing))
+        print("Use a kernel with the required drivers or install compatible modules separately. "
+              "This installer does not download or backport them.")
         return 1
     return 0
 
