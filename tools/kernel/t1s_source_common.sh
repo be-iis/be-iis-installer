@@ -153,14 +153,42 @@ t1s_prepare_upstream_v8() {
     local old_paths all_paths
     old_paths="$work/old-paths.txt"
     all_paths="$work/all-paths.txt"
-    grep -hE '^--- a/' "$mbox" |
-        sed -E 's#^--- a/##' |
-        sort -u > "$old_paths"
-    {
-        cat "$old_paths"
-        grep -hE '^(---|\\+\\+\\+) [ab]/' "$mbox" |
-            sed -E 's#^(---|\\+\\+\\+) [ab]/##'
-    } | grep -v '^/dev/null$' | sort -u > "$all_paths"
+    # Parse each diff in order. A path added by an earlier patch is NOT a
+    # file from the base commit (e.g. oa_tc6/Kconfig in patch 3).
+    # Pure renames must still fetch their original path (oa_tc6.c).
+    python3 - "$mbox" "$old_paths" "$all_paths" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+mbox, old_out, all_out = map(Path, sys.argv[1:])
+lines = mbox.read_text(errors="replace").splitlines()
+created = set()
+needed = set()
+touched = set()
+for idx, line in enumerate(lines):
+    match = re.match(r"diff --git a/(.+) b/(.+)$", line)
+    if not match:
+        continue
+    old, new = match.groups()
+    j = idx + 1
+    metadata = []
+    while j < len(lines) and not lines[j].startswith("diff --git ") and not lines[j].startswith("From "):
+        metadata.append(lines[j])
+        j += 1
+    new_file = any(x.startswith("new file mode ") or x == "--- /dev/null" for x in metadata)
+    rename_from = next((x[len("rename from "):] for x in metadata if x.startswith("rename from ")), None)
+    source = rename_from or old
+    if not new_file and source not in created:
+        needed.add(source)
+    if new_file or rename_from:
+        created.add(new)
+    touched.add(source)
+    touched.add(new)
+old_out.write_text("\\n".join(sorted(needed)) + "\\n")
+# Fetch only known-to-exist base paths, never paths newly created by patches.
+all_out.write_text("\\n".join(sorted(needed)) + "\\n")
+PY
 
     base_url="https://kernel.googlesource.com/pub/scm/linux/kernel/git/netdev/net-next/+/$S2500_BASE_COMMIT"
     while IFS= read -r path; do
