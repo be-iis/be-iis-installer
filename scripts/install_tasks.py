@@ -13,26 +13,42 @@ from concurrent.futures import ThreadPoolExecutor
 
 ROOT = Path(__file__).resolve().parents[1]
 KERNEL = os.uname().release
-TASKS = {
-    "adi": ("ADI 10BASE-T1S", [
-        ("Kernel modules", ["bash", "tools/kernel/adin1140_mod_build.sh"]),
-        ("Device-tree overlays", ["make", "-C", "products/BE-IIS-HPP-T1S-ADI-REVA/overlays/src/rpi"]),
-    ]),
-    "onsemi": ("onsemi 10BASE-T1S", [
-        ("Kernel modules", ["bash", "tools/kernel/s2500_mod_build.sh"]),
-        ("Device-tree overlays", ["make", "-C", "products/BE-IIS-HPP-T1S-ONSEMI-REVA/overlays/src/rpi"]),
-    ]),
-    "t1l": ("ADI 10BASE-T1L", [
-        ("ADIN1110 kernel module (build only)", ["bash", "tools/kernel/adin1110_mod_build.sh"]),
-        ("Device-tree overlays", ["make", "-C", "products/BE-IIS-HPP-T1L-REVB/overlays/src/rpi"]),
-    ]),
-    "uart": ("UART Rev.B", [
-        ("Device-tree overlays", ["make", "-C", "products/BE-IIS-HPP-UART-REVB/overlays/src/rpi"]),
-    ]),
-    "microchip": ("Microchip 10BASE-T1S", [
-        ("Kernel modules", ["bash", "tools/kernel/lan865x_mod_build.sh"]),
-    ]),
+# Do not execute arbitrary product install.sh scripts: many are placeholders,
+# and some may alter /boot or /lib/modules. Build targets are safe to discover.
+DRIVER_BUILDS = {
+    "BE-IIS-HPP-T1S-ADI-REVA": ("adin1140", "tools/kernel/adin1140_mod_build.sh"),
+    "BE-IIS-HPP-T1S-ONSEMI-REVA": ("s2500", "tools/kernel/s2500_mod_build.sh"),
+    "BE-IIS-HPP-T1S-REVB": ("lan865x", "tools/kernel/lan865x_mod_build.sh"),
+    "BE-IIS-HPP-T1L-REVB": ("adin1110", "tools/kernel/adin1110_mod_build.sh"),
 }
+ALIASES = {
+    "adi": "BE-IIS-HPP-T1S-ADI-REVA",
+    "onsemi": "BE-IIS-HPP-T1S-ONSEMI-REVA",
+    "microchip": "BE-IIS-HPP-T1S-REVB",
+    "t1l": "BE-IIS-HPP-T1L-REVB",
+    "uart": "BE-IIS-HPP-UART-REVB",
+}
+
+def discover_tasks():
+    """Find every product; run only explicit build scripts and overlay Makefiles."""
+    tasks = {}
+    for product in sorted((ROOT / "products").iterdir()):
+        if not product.is_dir() or not product.name.startswith("BE-IIS-"):
+            continue
+        key = product.name
+        steps = []
+        if key in DRIVER_BUILDS:
+            name, script = DRIVER_BUILDS[key]
+            if (ROOT / script).is_file():
+                steps.append((f"{name} kernel module (build only)", ["bash", script]))
+        overlay = product / "overlays" / "src" / "rpi" / "Makefile"
+        if overlay.is_file():
+            steps.append(("Device-tree overlays", ["make", "-C", str(overlay.parent.relative_to(ROOT))]))
+        tasks[key] = (product.name, steps)
+    return tasks
+
+TASKS = discover_tasks()
+
 SPINNER = "/-\\|"
 
 def draw(states, active, selected, frame):
@@ -46,8 +62,8 @@ def draw(states, active, selected, frame):
         results = states[key]
         failed = any(x["status"] == "failed" for x in results)
         complete = len(results) == len(steps)
-        icon = "✓" if complete and not failed else "!" if failed else "◉" if key in active else "○"
-        print(f"{icon} {name} ({len(results)}/{len(steps)} attempted)")
+        icon = "—" if not steps else "✓" if complete and not failed else "!" if failed else "◉" if key in active else "○"
+        print(f"{icon} {name} ({len(results)}/{len(steps)} attempted)" if steps else f"— {name} (no build target; skipped)")
         if key in active:
             label, status = active[key]
             spin = SPINNER[frame % len(SPINNER)] if interactive else ">"
@@ -85,13 +101,21 @@ def run_command(command, progress):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("tasks", nargs="*", choices=list(TASKS), help="Default: all")
+    parser.add_argument("tasks", nargs="*", help="Product directory names or legacy aliases (default: all)")
+    parser.add_argument("--list", action="store_true", help="List discovered products and build targets")
     parser.add_argument("--report", default="build/install-report.json")
     parser.add_argument("--jobs", type=int, default=3, help="Maximum parallel products (default 3)")
     args = parser.parse_args()
+    if args.list:
+        for key, (name, steps) in TASKS.items():
+            print(f"{key}: " + (", ".join(x[0] for x in steps) if steps else "no build target (skipped)"))
+        return 0
     if args.jobs < 1:
         parser.error("--jobs must be at least 1")
-    selected = list(dict.fromkeys(args.tasks or list(TASKS)))
+    selected = list(dict.fromkeys(ALIASES.get(k, k) for k in (args.tasks or list(TASKS))))
+    for key in selected:
+        if key not in TASKS:
+            parser.error(f"unknown product: {key}")
     states = {key: [] for key in selected}
     active = {}
     lock = threading.Lock()
