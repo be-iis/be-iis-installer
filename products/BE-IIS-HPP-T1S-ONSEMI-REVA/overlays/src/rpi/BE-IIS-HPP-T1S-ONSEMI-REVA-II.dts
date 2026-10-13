@@ -4,8 +4,8 @@
 /dts-v1/;
 /plugin/;
 
-#include <dt-bindings/interrupt-controller/irq.h>
-#include <dt-bindings/gpio/gpio.h>
+#define IRQ_TYPE_LEVEL_LOW 8
+#define GPIO_ACTIVE_LOW 1
 
 / {
     compatible = "brcm,bcm2835", "brcm,bcm2711", "brcm,bcm2712";
