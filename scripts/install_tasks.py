@@ -4,6 +4,10 @@ import argparse
 import datetime as dt
 import json
 import os
+import queue
+import re
+import threading
+import time
 from pathlib import Path
 import subprocess
 import sys
@@ -23,8 +27,9 @@ TASKS = {
     ]),
 }
 
-def draw(states, selected):
-    if sys.stdout.isatty() and not os.getenv("NO_COLOR"):
+def draw(states, selected, active=None, frame=0):
+    interactive = sys.stdout.isatty() and not os.getenv("NO_COLOR")
+    if interactive:
         sys.stdout.write("\x1b[2J\x1b[H")
     print("BE-IIS installation  •  " + subprocess.getoutput("uname -r"))
     print()
@@ -35,6 +40,9 @@ def draw(states, selected):
         failed = any(r["status"] == "failed" for r in results)
         mark = "✓" if done else "!" if failed else "○"
         print(f"{mark} {name} ({len(results)}/{len(steps)} attempted)")
+        if active and active[0] == key:
+            spinner = "/-\\|"[frame % 4] if interactive else ">"
+            print(f"  {spinner} {active[1]} — {active[2]}")
         # Completed steps disappear; failures remain visible with status.
         for idx, (label, _) in enumerate(steps):
             if idx < len(results):
@@ -43,6 +51,49 @@ def draw(states, selected):
             else:
                 print(f"  ☐ {label}")
     print(flush=True)
+
+def run_step(command, states, selected, key, label):
+    """Stream output to the report while periodically refreshing the terminal."""
+    try:
+        proc = subprocess.Popen(command, cwd=ROOT, text=True,
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                bufsize=1)
+    except OSError as exc:
+        return 127, str(exc)
+    lines = queue.Queue()
+    def collect():
+        for line in proc.stdout:
+            lines.put(line)
+        lines.put(None)
+    threading.Thread(target=collect, daemon=True).start()
+    output = []
+    frame = 0
+    status = "working"
+    finished = False
+    last_render = 0.0
+    while not finished:
+        try:
+            line = lines.get(timeout=0.15)
+            if line is None:
+                finished = True
+            else:
+                output.append(line)
+                lower = line.lower()
+                if any(term in lower for term in ("download", "fetch", "wget", "source", "patch")):
+                    status = "downloading kernel sources / preparing patches"
+                elif any(term in lower for term in ("compile", "building", "make -c", "  cc ", "  ld ")):
+                    status = "building kernel modules"
+        except queue.Empty:
+            pass
+        now = time.monotonic()
+        if now - last_render >= 0.15:
+            if sys.stdout.isatty():
+                draw(states, selected, active=(key, label, status), frame=frame)
+            elif frame % 40 == 0:
+                print(f"> {TASKS[key][0]}: {label} — {status}", flush=True)
+            frame += 1
+            last_render = now
+    return proc.wait(), "".join(output)
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -56,12 +107,7 @@ def main():
     draw(states, selected)
     for key in selected:
         for label, command in TASKS[key][1]:
-            try:
-                proc = subprocess.run(command, cwd=ROOT, text=True, stdout=subprocess.PIPE,
-                                      stderr=subprocess.STDOUT, check=False)
-                code, output = proc.returncode, proc.stdout
-            except OSError as exc:
-                code, output = 127, str(exc)
+            code, output = run_step(command, states, selected, key, label)
             states[key].append({"step": label, "command": command,
                                 "status": "ok" if code == 0 else "failed",
                                 "returncode": code, "output": output})
