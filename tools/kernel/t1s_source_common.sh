@@ -138,14 +138,22 @@ t1s_prepare_upstream_v8() {
     t1s_require b4
     t1s_require wget
 
-    rm -rf "$tree" "$work"
+    if [[ -f "$tree/.beiis-s2500-v8-ready" ]] && t1s_has_target "$tree" s2500; then
+        t1s_note "Reusing prepared S2500 v8 source tree: $tree" >&2
+        printf '%s\\n' "$tree"
+        return 0
+    fi
     mkdir -p "$tree" "$work"
 
     t1s_note "Downloading S2500 $S2500_SERIES_VERSION patch series (no kernel clone)." >&2
     # Independent b4 caches prevent concurrent product builds from modifying
     # the same message cache entries. Keep them in the product-specific workdir.
     mkdir -p "$work/cache"
-    (cd "$work" && XDG_CACHE_HOME="$work/cache" b4 am -o . "$S2500_SERIES_MSGID" >/dev/null) || { t1s_warn "Could not download S2500 patch series"; return 1; }
+    if ! find "$work" -maxdepth 1 -type f \( -name '*.mbx' -o -name '*.mbox' \) | grep -q .; then
+        (cd "$work" && XDG_CACHE_HOME="$work/cache" b4 am -o . "$S2500_SERIES_MSGID" >/dev/null) || { t1s_warn "Could not download S2500 patch series"; return 1; }
+    else
+        t1s_note "Reusing downloaded S2500 patch series" >&2
+    fi
     mbox="$(find "$work" -maxdepth 1 -type f \( -name '*.mbx' -o -name '*.mbox' \) | head -n1)"
     [[ -n "$mbox" ]] || t1s_die "b4 did not produce an S2500 patch mbox"
 
@@ -197,7 +205,11 @@ PY
     while IFS= read -r path; do
         [[ -n "$path" ]] || continue
         mkdir -p "$tree/$(dirname "$path")"
-        if ! wget -q --timeout=15 --tries=2 -O "$tree/$path.tmp" "$base_url/$path?format=TEXT"; then
+        if [[ -s "$work/base-files/$path" ]]; then
+            cp "$work/base-files/$path" "$tree/$path"
+            continue
+        fi
+        if ! wget -q --timeout=15 --tries=4 --waitretry=2 -O "$tree/$path.tmp" "$base_url/$path?format=TEXT"; then
             rm -f "$tree/$path.tmp"
             # New paths need not exist on the base; old paths MUST exist
             # unless created earlier in the same patch series.
@@ -212,8 +224,11 @@ PY
             t1s_warn "Invalid base64 response for $path"; return 1
         fi
         rm -f "$tree/$path.tmp"
+        mkdir -p "$work/base-files/$(dirname "$path")"
+        cp "$tree/$path" "$work/base-files/$path"
     done < "$all_paths"
 
+    rm -rf "$tree/.git"
     git -C "$tree" init -q
     git -C "$tree" config user.name "BE-IIS T1S build"
     git -C "$tree" config user.email "build@localhost"
@@ -227,6 +242,7 @@ PY
 
     t1s_has_target "$tree" s2500 ||
         t1s_die "S2500 $S2500_SERIES_VERSION feature set missing after patching"
+    touch "$tree/.beiis-s2500-v8-ready"
 
     printf '%s\n' "$tree"
 }
