@@ -143,6 +143,8 @@ t1s_prepare_upstream_v8() {
         printf '%s\\n' "$tree"
         return 0
     fi
+    # Recreate the patch checkout; keep the separate download cache in $work.
+    rm -rf "$tree"
     mkdir -p "$tree" "$work"
 
     t1s_note "Downloading S2500 $S2500_SERIES_VERSION patch series (no kernel clone)." >&2
