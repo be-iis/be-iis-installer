@@ -12,11 +12,13 @@ def main():
     kernel = os.uname().release
     missing = []
     for module in modules:
-        result = subprocess.run(["modinfo", "-k", kernel, module],
-                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+        result = subprocess.run(["modinfo", "-k", kernel, "-F", "filename", module],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                 text=True, check=False)
-        if result.returncode == 0:
-            print(f"OK: {module} provided by running kernel {kernel}")
+        location = result.stdout.strip() if result.returncode == 0 else ""
+        native = location == "(builtin)" or (location.startswith(f"/lib/modules/{kernel}/kernel/"))
+        if result.returncode == 0 and native:
+            print(f"OK: {module} provided by running kernel {kernel} ({location})")
         else:
             print(f"ERROR: {module} is not available for kernel {kernel}.")
             missing.append(module)
