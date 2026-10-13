@@ -27,7 +27,7 @@ t1s_kernel_branch() {
 t1s_fetch() {
     local url="$1" dst="$2"
     mkdir -p "$(dirname "$dst")"
-    wget -q -O "$dst.tmp" "$url" || {
+    wget -q --timeout=15 --tries=2 -O "$dst.tmp" "$url" || {
         rm -f "$dst.tmp"
         return 1
     }
@@ -148,11 +148,11 @@ t1s_prepare_upstream_v8() {
 
     # Download only pre-existing files touched by the series. Files newly added
     # by the patches intentionally return 404 and are created by git am.
-    base_url="https://git.kernel.org/pub/scm/linux/kernel/git/netdev/net-next.git/plain"
+    base_url="https://raw.githubusercontent.com/torvalds/linux/$S2500_BASE_COMMIT"
     while IFS= read -r path; do
         [[ -n "$path" ]] || continue
         mkdir -p "$tree/$(dirname "$path")"
-        wget -q -O "$tree/$path.tmp" "$base_url/$path?id=$S2500_BASE_COMMIT" 2>/dev/null || {
+        wget -q --timeout=15 --tries=2 -O "$tree/$path.tmp" "$base_url/$path" 2>/dev/null || {
             rm -f "$tree/$path.tmp"
             continue
         }
