@@ -185,9 +185,9 @@ for idx, line in enumerate(lines):
         created.add(new)
     touched.add(source)
     touched.add(new)
-old_out.write_text("\\n".join(sorted(needed)) + "\\n")
+old_out.write_text("\n".join(sorted(needed)) + "\n")
 # Fetch only known-to-exist base paths, never paths newly created by patches.
-all_out.write_text("\\n".join(sorted(needed)) + "\\n")
+all_out.write_text("\n".join(sorted(needed)) + "\n")
 PY
 
     base_url="https://kernel.googlesource.com/pub/scm/linux/kernel/git/netdev/net-next/+/$S2500_BASE_COMMIT"
