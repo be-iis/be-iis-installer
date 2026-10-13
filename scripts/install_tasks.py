@@ -15,12 +15,15 @@ ROOT = Path(__file__).resolve().parents[1]
 KERNEL = os.uname().release
 # Do not execute arbitrary product install.sh scripts: many are placeholders,
 # and some may alter /boot or /lib/modules. Build targets are safe to discover.
+# Microchip keeps its existing documented B1 compatibility path.
+# All other drivers must be provided by the running kernel.
 DRIVER_BUILDS = {
-    "BE-IIS-HPP-T1S-ADI-REVA": ("adin1140", "tools/kernel/adin1140_mod_build.sh"),
-    "BE-IIS-HPP-T1S-ONSEMI-REVA": ("s2500", "tools/kernel/s2500_mod_build.sh"),
-    "BE-IIS-HPP-T1S-REVB": ("lan865x", "tools/kernel/lan865x_mod_build.sh"),
-    "BE-IIS-HPP-T1L-REVB": ("adin1110", "tools/kernel/adin1110_mod_build.sh"),
+    "BE-IIS-HPP-T1S-ADI-REVA": ("adin1140", ["adin1140", "adin1140-phy", "oa_tc6"]),
+    "BE-IIS-HPP-T1S-ONSEMI-REVA": ("s2500", ["s2500", "ncn26000", "oa_tc6"]),
+    "BE-IIS-HPP-T1L-REVB": ("adin1110", ["adin1110"]),
 }
+MICROCHIP_SCRIPT = "tools/kernel/lan865x_mod_build.sh"
+
 ALIASES = {
     "adi": "BE-IIS-HPP-T1S-ADI-REVA",
     "onsemi": "BE-IIS-HPP-T1S-ONSEMI-REVA",
@@ -38,9 +41,13 @@ def discover_tasks():
         key = product.name
         steps = []
         if key in DRIVER_BUILDS:
-            name, script = DRIVER_BUILDS[key]
-            if (ROOT / script).is_file():
-                steps.append((f"{name} kernel module (build only)", ["bash", script]))
+            name, modules = DRIVER_BUILDS[key]
+            steps.append((f"{name} native kernel driver check", [
+                sys.executable, "scripts/check_kernel_modules.py", *modules
+            ]))
+        elif key == "BE-IIS-HPP-T1S-REVB" and (ROOT / MICROCHIP_SCRIPT).is_file():
+            steps.append(("Microchip kernel driver / B1 compatibility",
+                          ["bash", MICROCHIP_SCRIPT]))
         overlay = product / "overlays" / "src" / "rpi" / "Makefile"
         if overlay.is_file():
             steps.append(("Device-tree overlays", ["make", "-C", str(overlay.parent.relative_to(ROOT))]))
