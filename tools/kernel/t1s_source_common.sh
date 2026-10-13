@@ -140,7 +140,7 @@ t1s_prepare_upstream_v8() {
 
     if [[ -f "$tree/.beiis-s2500-v8-ready" ]] && t1s_has_target "$tree" s2500; then
         t1s_note "Reusing prepared S2500 v8 source tree: $tree" >&2
-        printf '%s\\n' "$tree"
+        printf '%s\n' "$tree"
         return 0
     fi
     # Recreate the patch checkout; keep the separate download cache in $work.
