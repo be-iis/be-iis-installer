@@ -142,7 +142,7 @@ t1s_prepare_upstream_v8() {
     mkdir -p "$tree" "$work"
 
     t1s_note "Downloading S2500 $S2500_SERIES_VERSION patch series (no kernel clone)." >&2
-    (cd "$work" && b4 am -o . "$S2500_SERIES_MSGID" >/dev/null)
+    (cd "$work" && b4 am -o . "$S2500_SERIES_MSGID" >/dev/null) || { t1s_warn "Could not download S2500 patch series"; return 1; }
     mbox="$(find "$work" -maxdepth 1 -type f \( -name '*.mbx' -o -name '*.mbox' \) | head -n1)"
     [[ -n "$mbox" ]] || t1s_die "b4 did not produce an S2500 patch mbox"
 
@@ -208,11 +208,15 @@ t1s_prepare_source() {
     t1s_warn "Fetching only the files touched by the upstream S2500 $S2500_SERIES_VERSION series."
     t1s_warn "No complete Raspberry Pi or Linux kernel tree will be cloned."
 
-    tree="$(t1s_prepare_upstream_v8 "$repo_root")"
+    tree="$(t1s_prepare_upstream_v8 "$repo_root")" || {
+        t1s_warn "S2500 upstream backport source preparation failed; no source tree available."
+        return 1
+    }
 
     # The S2500 series contains the common OA-TC6 baseline. ADIN1140 and
     # LAN865x may already be present at the selected base; if not, fetch just
     # their driver files from current upstream.
+    [[ -n "$tree" && -d "$tree" ]] || { t1s_warn "No valid source directory for $target"; return 1; }
     if ! t1s_has_target "$tree" "$target"; then
         local raw="https://raw.githubusercontent.com/torvalds/linux/master" path
         while IFS= read -r path; do
@@ -223,8 +227,7 @@ t1s_prepare_source() {
         done < <(t1s_target_files "$target")
     fi
 
-    t1s_has_target "$tree" "$target" ||
-        t1s_die "Required $target source set is incomplete"
+    t1s_has_target "$tree" "$target" || { t1s_warn "Required $target source set is incomplete"; return 1; }
 
     printf '%s\n' "$tree"
 }
