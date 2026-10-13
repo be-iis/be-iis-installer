@@ -192,7 +192,7 @@ t1s_prepare_source() {
     for local_src in "/lib/modules/$kver/source" "/lib/modules/$kver/build"; do
         if [[ -d "$local_src" ]] && t1s_has_target "$local_src" "$target"; then
             t1s_note "Using local sources for running kernel $kver: $local_src" >&2
-            printf '%s\\n' "$local_src"
+            printf '%s\n' "$local_src"
             return 0
         fi
     done
