@@ -119,6 +119,7 @@ def main():
     parser.add_argument("--list", action="store_true", help="List discovered products and build targets")
     parser.add_argument("--report", default="build/install-report.json")
     parser.add_argument("--jobs", type=int, default=3, help="Maximum parallel products (default 3)")
+    parser.add_argument("--install-built", action="store_true", help="Attempt guarded installation of built onsemi modules (requires sudo)")
     args = parser.parse_args()
     if args.list:
         for key, (name, steps) in TASKS.items():
@@ -190,7 +191,24 @@ def main():
                             "returncode": code, "output": output, "retry": True})
         if code == 0:
             original["backport_built"] = True
-            # Build-only is not installation: the native module check remains failed.
+            if args.install_built and key == "BE-IIS-HPP-T1S-ONSEMI-REVA":
+                install_cmd = ["sudo", sys.executable, "scripts/install_s2500_modules.py"]
+                install_code, install_log = run_command(install_cmd, retry_progress)
+                states[key].append({"step": "Guarded onsemi module installation",
+                                    "command": install_cmd,
+                                    "status": "ok" if install_code == 0 else "failed",
+                                    "returncode": install_code, "output": install_log, "retry": True})
+                if install_code == 0:
+                    check_cmd = [sys.executable, "scripts/check_kernel_modules.py",
+                                 "s2500", "ncn26000", "oa_tc6"]
+                    verify_code, verify_log = run_command(check_cmd, retry_progress)
+                    states[key].append({"step": "Post-install module verification",
+                                        "command": check_cmd,
+                                        "status": "ok" if verify_code == 0 else "failed",
+                                        "returncode": verify_code, "output": verify_log, "retry": True})
+                    if verify_code == 0:
+                        original["recovered"] = True
+            # A successful build alone is not an installed driver.
         with lock:
             active.pop(key, None)
             draw(states, active, selected, frame)
