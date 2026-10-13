@@ -146,23 +146,39 @@ t1s_prepare_upstream_v8() {
     mbox="$(find "$work" -maxdepth 1 -type f \( -name '*.mbx' -o -name '*.mbox' \) | head -n1)"
     [[ -n "$mbox" ]] || t1s_die "b4 did not produce an S2500 patch mbox"
 
-    # Download only pre-existing files touched by the series. Files newly added
-    # by the patches intentionally return 404 and are created by git am.
-    base_url="https://raw.githubusercontent.com/torvalds/linux/$S2500_BASE_COMMIT"
+    # Apply the series on its declared net-next base, not an unrelated
+    # moving kernel branch. Include both sides of renames (diff --git), not
+    # only ---/+++ markers. Missing OLD files are fatal: silently skipping
+    # them makes git am fail with misleading "does not exist in index".
+    local old_paths all_paths
+    old_paths="$work/old-paths.txt"
+    all_paths="$work/all-paths.txt"
+    grep -hE '^diff --git a/[^ ]+ b/[^ ]+' "$mbox" |
+        sed -E 's#^diff --git a/([^ ]+) b/([^ ]+)$#\\1#' |
+        sort -u > "$old_paths"
+    {
+        cat "$old_paths"
+        grep -hE '^(---|\\+\\+\\+) [ab]/' "$mbox" |
+            sed -E 's#^(---|\\+\\+\\+) [ab]/##'
+    } | grep -v '^/dev/null$' | sort -u > "$all_paths"
+
+    base_url="https://raw.githubusercontent.com/netdev/net-next/$S2500_BASE_COMMIT"
     while IFS= read -r path; do
         [[ -n "$path" ]] || continue
         mkdir -p "$tree/$(dirname "$path")"
-        wget -q --timeout=15 --tries=2 -O "$tree/$path.tmp" "$base_url/$path" 2>/dev/null || {
+        if ! wget -q --timeout=15 --tries=2 -O "$tree/$path.tmp" "$base_url/$path"; then
             rm -f "$tree/$path.tmp"
+            # New paths need not exist on the base; old paths MUST exist
+            # unless created earlier in the same patch series.
+            if grep -Fxq "$path" "$old_paths"; then
+                t1s_warn "Cannot fetch pinned net-next base file: $path ($S2500_BASE_COMMIT)"
+                t1s_warn "Cannot safely apply the patch series to an incomplete base."
+                return 1
+            fi
             continue
-        }
+        fi
         mv "$tree/$path.tmp" "$tree/$path"
-    done < <(
-        grep -hE '^(---|\+\+\+) [ab]/' "$mbox" |
-        sed -E 's#^(---|\+\+\+) [ab]/##' |
-        grep -v '^/dev/null$' |
-        sort -u
-    )
+    done < "$all_paths"
 
     git -C "$tree" init -q
     git -C "$tree" config user.name "BE-IIS T1S build"
