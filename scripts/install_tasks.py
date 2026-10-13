@@ -22,6 +22,13 @@ TASKS = {
         ("Kernel modules", ["bash", "tools/kernel/s2500_mod_build.sh"]),
         ("Device-tree overlays", ["make", "-C", "products/BE-IIS-HPP-T1S-ONSEMI-REVA/overlays/src/rpi"]),
     ]),
+    "t1l": ("ADI 10BASE-T1L", [
+        ("ADIN1110 kernel module (build only)", ["bash", "tools/kernel/adin1110_mod_build.sh"]),
+        ("Device-tree overlays", ["make", "-C", "products/BE-IIS-HPP-T1L-REVB/overlays/src/rpi"]),
+    ]),
+    "uart": ("UART Rev.B", [
+        ("Device-tree overlays", ["make", "-C", "products/BE-IIS-HPP-UART-REVB/overlays/src/rpi"]),
+    ]),
     "microchip": ("Microchip 10BASE-T1S", [
         ("Kernel modules", ["bash", "tools/kernel/lan865x_mod_build.sh"]),
     ]),
@@ -55,7 +62,9 @@ def draw(states, active, selected, frame):
 
 def run_command(command, progress):
     try:
-        proc = subprocess.Popen(command, cwd=ROOT, stdout=subprocess.PIPE,
+        env = os.environ.copy()
+        env["BEIIS_BUILD_ONLY"] = "1"
+        proc = subprocess.Popen(command, cwd=ROOT, env=env, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, text=True, bufsize=1)
     except OSError as exc:
         return 127, str(exc)
