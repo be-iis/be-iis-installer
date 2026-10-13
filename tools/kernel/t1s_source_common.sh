@@ -142,7 +142,10 @@ t1s_prepare_upstream_v8() {
     mkdir -p "$tree" "$work"
 
     t1s_note "Downloading S2500 $S2500_SERIES_VERSION patch series (no kernel clone)." >&2
-    (cd "$work" && b4 am -o . "$S2500_SERIES_MSGID" >/dev/null) || { t1s_warn "Could not download S2500 patch series"; return 1; }
+    # Independent b4 caches prevent concurrent product builds from modifying
+    # the same message cache entries. Keep them in the product-specific workdir.
+    mkdir -p "$work/cache"
+    (cd "$work" && XDG_CACHE_HOME="$work/cache" b4 am -o . "$S2500_SERIES_MSGID" >/dev/null) || { t1s_warn "Could not download S2500 patch series"; return 1; }
     mbox="$(find "$work" -maxdepth 1 -type f \( -name '*.mbx' -o -name '*.mbox' \) | head -n1)"
     [[ -n "$mbox" ]] || t1s_die "b4 did not produce an S2500 patch mbox"
 
