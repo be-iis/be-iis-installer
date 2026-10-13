@@ -186,6 +186,16 @@ t1s_prepare_source() {
     local branch tree
 
     t1s_require wget
+    # Prefer sources from the *running kernel* rather than an independently
+    # moving Raspberry Pi branch. /source may be a symlink to a full tree.
+    local local_src
+    for local_src in "/lib/modules/$kver/source" "/lib/modules/$kver/build"; do
+        if [[ -d "$local_src" ]] && t1s_has_target "$local_src" "$target"; then
+            t1s_note "Using local sources for running kernel $kver: $local_src" >&2
+            printf '%s\\n' "$local_src"
+            return 0
+        fi
+    done
     branch="$(t1s_kernel_branch "$kver")"
 
     if tree="$(t1s_prepare_rpi_files "$repo_root" "$target" "$branch")"; then
