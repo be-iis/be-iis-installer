@@ -74,7 +74,7 @@ def draw(states, active, selected, frame):
         failed = any(x["status"] == "failed" and not x.get("recovered") for x in results)
         complete = len([x for x in results if not x.get("retry")]) >= len(steps)
         icon = "—" if not steps else "✓" if complete and not failed else "!" if failed else "◉" if key in active else "○"
-        print(f"{icon} {name} ({len(results)}/{len(steps)} attempted)" if steps else f"— {name} (no build target; skipped)")
+        print(f"{icon} {name} ({len([x for x in results if not x.get('retry')])}/{len(steps)} attempted)" if steps else f"— {name} (no build target; skipped)")
         if key in active:
             label, status = active[key]
             spin = SPINNER[frame % len(SPINNER)] if interactive else ">"
