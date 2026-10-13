@@ -26,6 +26,14 @@ cp "$SRC/drivers/net/ethernet/oa_tc6/oa_tc6_ptp.c" "$OUT/" 2>/dev/null || true
 cp "$SRC/drivers/net/ethernet/oa_tc6/oa_tc6_tstamp.c" "$OUT/" 2>/dev/null || true
 cp "$SRC/drivers/net/ethernet/oa_tc6/oa_tc6_std_def.h" "$OUT/" 2>/dev/null || true
 
+# Kernel 6.12 already ships an older linux/oa_tc6.h. The new OA-TC6
+# source set MUST consistently include its matching local header.
+cp "$OUT/include/linux/oa_tc6.h" "$OUT/oa_tc6_local.h"
+for src in "$OUT"/*.c "$OUT"/*.h; do
+    [[ -f "$src" ]] || continue
+    sed -i 's@#include <linux/oa_tc6.h>@#include "oa_tc6_local.h"@g' "$src"
+done
+
 cat > "$OUT/Makefile" <<'EOF'
 obj-m := oa_tc6.o adin1140.o adin1140-phy.o
 oa_tc6-y := oa_tc6_core.o
