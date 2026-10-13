@@ -15,14 +15,17 @@ ROOT = Path(__file__).resolve().parents[1]
 KERNEL = os.uname().release
 # Do not execute arbitrary product install.sh scripts: many are placeholders,
 # and some may alter /boot or /lib/modules. Build targets are safe to discover.
-# Microchip keeps its existing documented B1 compatibility path.
-# All other drivers must be provided by the running kernel.
+# The first pass checks installed modules; only onsemi and Microchip can\n# retry with a sequential backport build. The Microchip script keeps its B1 logic.
 DRIVER_BUILDS = {
     "BE-IIS-HPP-T1S-ADI-REVA": ("adin1140", ["adin1140", "adin1140-phy", "oa_tc6"]),
     "BE-IIS-HPP-T1S-ONSEMI-REVA": ("s2500", ["s2500", "ncn26000", "oa_tc6"]),
     "BE-IIS-HPP-T1L-REVB": ("adin1110", ["adin1110"]),
 }
 MICROCHIP_SCRIPT = "tools/kernel/lan865x_mod_build.sh"
+RETRY_BUILDS = {
+    "BE-IIS-HPP-T1S-ONSEMI-REVA": ("s2500 backport build", ["bash", "tools/kernel/s2500_mod_build.sh"]),
+    "BE-IIS-HPP-T1S-REVB": ("Microchip B1 compatibility build", ["bash", MICROCHIP_SCRIPT]),
+}
 
 ALIASES = {
     "adi": "BE-IIS-HPP-T1S-ADI-REVA",
@@ -45,9 +48,10 @@ def discover_tasks():
             steps.append((f"{name} native kernel driver check", [
                 sys.executable, "scripts/check_kernel_modules.py", *modules
             ]))
-        elif key == "BE-IIS-HPP-T1S-REVB" and (ROOT / MICROCHIP_SCRIPT).is_file():
-            steps.append(("Microchip kernel driver / B1 compatibility",
-                          ["bash", MICROCHIP_SCRIPT]))
+        elif key == "BE-IIS-HPP-T1S-REVB":
+            steps.append(("Microchip installed kernel driver check", [
+                sys.executable, "scripts/check_kernel_modules.py", "lan865x", "microchip_t1s", "oa_tc6"
+            ]))
         overlay = product / "overlays" / "src" / "rpi" / "Makefile"
         if overlay.is_file():
             steps.append(("Device-tree overlays", ["make", "-C", str(overlay.parent.relative_to(ROOT))]))
@@ -67,18 +71,21 @@ def draw(states, active, selected, frame):
     for key in selected:
         name, steps = TASKS[key]
         results = states[key]
-        failed = any(x["status"] == "failed" for x in results)
-        complete = len(results) == len(steps)
+        failed = any(x["status"] == "failed" and not x.get("recovered") for x in results)
+        complete = len([x for x in results if not x.get("retry")]) >= len(steps)
         icon = "—" if not steps else "✓" if complete and not failed else "!" if failed else "◉" if key in active else "○"
         print(f"{icon} {name} ({len(results)}/{len(steps)} attempted)" if steps else f"— {name} (no build target; skipped)")
         if key in active:
             label, status = active[key]
             spin = SPINNER[frame % len(SPINNER)] if interactive else ">"
             print(f"  {spin} {label}: {status}")
+        for retry in (x for x in results if x.get("retry")):
+            print(f"  {'✓' if retry['status'] == 'ok' else '✗'} {retry['step']} — {retry['status']}")
         for index, (label, _) in enumerate(steps):
             if index < len(results):
                 if results[index]["status"] == "failed":
-                    print(f"  ✗ {label} — failed (see report)")
+                    symbol = "↻" if results[index].get("recovered") else "✗"
+                    print(f"  {symbol} {label} — " + ("recovered by backport" if results[index].get("recovered") else "failed (see report)"))
             elif key not in active or active[key][0] != label:
                 print(f"  ☐ {label}")
     print(flush=True)
@@ -156,11 +163,41 @@ def main():
             time.sleep(0.2)
         for future in futures:
             future.result()
+    # Phase 2: only retry failed native-driver checks for onsemi/Microchip.
+    # No parallel backport builds. Do not retry unrelated overlay failures.
+    for key in selected:
+        if key not in RETRY_BUILDS or not states[key]:
+            continue
+        original = states[key][0]
+        if original["status"] != "failed":
+            continue
+        label, command = RETRY_BUILDS[key]
+        if not (ROOT / command[1]).is_file():
+            states[key].append({"step": label, "command": command, "status": "failed",
+                                "returncode": 127, "output": "Backport build script missing", "retry": True})
+            continue
+        with lock:
+            active[key] = (label, "Trying kernel compatibility backport")
+        def retry_progress(status):
+            with lock:
+                active[key] = (label, status)
+        try:
+            code, output = run_command(command, retry_progress)
+        except Exception as exc:
+            code, output = 127, str(exc)
+        states[key].append({"step": label, "command": command,
+                            "status": "ok" if code == 0 else "failed",
+                            "returncode": code, "output": output, "retry": True})
+        if code == 0:
+            original["recovered"] = True
+        with lock:
+            active.pop(key, None)
+            draw(states, active, selected, frame)
     draw(states, active, selected, frame)
     report = {"timestamp": dt.datetime.now(dt.timezone.utc).isoformat(),
               "kernel": KERNEL, "tasks": states}
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-    failed = sum(x["status"] == "failed" for group in states.values() for x in group)
+    failed = sum(x["status"] == "failed" and not x.get("recovered") for group in states.values() for x in group)
     print(f"Report: {report_path} | Failed steps: {failed}")
     return 1 if failed else 0
 
