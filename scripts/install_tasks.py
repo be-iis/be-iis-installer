@@ -80,12 +80,12 @@ def draw(states, active, selected, frame):
             spin = SPINNER[frame % len(SPINNER)] if interactive else ">"
             print(f"  {spin} {label}: {status}")
         for retry in (x for x in results if x.get("retry")):
-            print(f"  {'✓' if retry['status'] == 'ok' else '✗'} {retry['step']} — {retry['status']}")
+            print(f"  {'✓' if retry['status'] == 'ok' else '✗'} {retry['step']} — " + ("built, not installed" if retry["status"] == "ok" else "failed"))
         for index, (label, _) in enumerate(steps):
             if index < len(results):
                 if results[index]["status"] == "failed":
                     symbol = "↻" if results[index].get("recovered") else "✗"
-                    print(f"  {symbol} {label} — " + ("recovered by backport" if results[index].get("recovered") else "failed (see report)"))
+                    print(f"  {symbol} {label} — " + ("backport compiled, not installed" if results[index].get("backport_built") else "failed (see report)"))
             elif key not in active or active[key][0] != label:
                 print(f"  ☐ {label}")
     print(flush=True)
@@ -189,7 +189,8 @@ def main():
                             "status": "ok" if code == 0 else "failed",
                             "returncode": code, "output": output, "retry": True})
         if code == 0:
-            original["recovered"] = True
+            original["backport_built"] = True
+            # Build-only is not installation: the native module check remains failed.
         with lock:
             active.pop(key, None)
             draw(states, active, selected, frame)
