@@ -162,11 +162,11 @@ t1s_prepare_upstream_v8() {
             sed -E 's#^(---|\\+\\+\\+) [ab]/##'
     } | grep -v '^/dev/null$' | sort -u > "$all_paths"
 
-    base_url="https://raw.githubusercontent.com/netdev/net-next/$S2500_BASE_COMMIT"
+    base_url="https://kernel.googlesource.com/pub/scm/linux/kernel/git/netdev/net-next/+/$S2500_BASE_COMMIT"
     while IFS= read -r path; do
         [[ -n "$path" ]] || continue
         mkdir -p "$tree/$(dirname "$path")"
-        if ! wget -q --timeout=15 --tries=2 -O "$tree/$path.tmp" "$base_url/$path"; then
+        if ! wget -q --timeout=15 --tries=2 -O "$tree/$path.tmp" "$base_url/$path?format=TEXT"; then
             rm -f "$tree/$path.tmp"
             # New paths need not exist on the base; old paths MUST exist
             # unless created earlier in the same patch series.
@@ -177,7 +177,10 @@ t1s_prepare_upstream_v8() {
             fi
             continue
         fi
-        mv "$tree/$path.tmp" "$tree/$path"
+        if ! base64 -d "$tree/$path.tmp" > "$tree/$path"; then
+            t1s_warn "Invalid base64 response for $path"; return 1
+        fi
+        rm -f "$tree/$path.tmp"
     done < "$all_paths"
 
     git -C "$tree" init -q
