@@ -8,8 +8,8 @@ KVER="$(uname -r)"
 KDIR="/lib/modules/$KVER/build"
 [[ -d "$KDIR" ]] || t1s_die "Kernel headers not found: $KDIR"
 
-if modinfo s2500 >/dev/null 2>&1; then
-    t1s_note "Running kernel already provides s2500."
+if modinfo s2500 >/dev/null 2>&1 && modinfo ncn26000 >/dev/null 2>&1 && modinfo oa_tc6 >/dev/null 2>&1; then
+    t1s_note "Running kernel already provides s2500, ncn26000 and oa_tc6."
     exit 0
 fi
 
