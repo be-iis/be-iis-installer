@@ -29,6 +29,14 @@ cp "$SRC/drivers/net/ethernet/onsemi/s2500/s2500_ptp.c" "$OUT/"
 cp "$SRC/drivers/net/ethernet/onsemi/s2500/s2500_hw_def.h" "$OUT/"
 cp "$SRC/drivers/net/phy/ncn26000.c" "$OUT/"
 
+# Kernel 6.12 already ships an older linux/oa_tc6.h. The new OA-TC6
+# source set MUST consistently include its matching local header.
+cp "$OUT/include/linux/oa_tc6.h" "$OUT/oa_tc6_local.h"
+for src in "$OUT"/*.c "$OUT"/*.h; do
+    [[ -f "$src" ]] || continue
+    sed -i 's@#include <linux/oa_tc6.h>@#include "oa_tc6_local.h"@g' "$src"
+done
+
 cat > "$OUT/Makefile" <<'EOF'
 obj-m := oa_tc6.o s2500.o ncn26000.o
 oa_tc6-y := oa_tc6_core.o oa_tc6_ptp.o oa_tc6_tstamp.o
