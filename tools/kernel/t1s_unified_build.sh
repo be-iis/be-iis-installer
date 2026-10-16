@@ -42,6 +42,55 @@ for f in adin1140.c adin1140-phy.c; do cp "$A/$f" "$OUT/$f"; done
 cp "$SRC/drivers/net/ethernet/microchip/lan865x/lan865x.c" "$OUT/lan865x.c"
 cp "$SRC/drivers/net/phy/microchip_t1s.c" "$OUT/microchip_t1s.c"
 
+# Linux 6.12 lacks the newer OA TC14 cable diagnostic helpers and
+# generic Clause-45 PHY callbacks used by the upstream Microchip PHY.
+PHY_H="$KDIR/include/linux/phy.h"
+[[ -f "$PHY_H" ]] || PHY_H="/usr/src/linux-headers-${KVER%%-rpi-*}-common-rpi/include/linux/phy.h"
+[[ -f "$PHY_H" ]] || t1s_die "Could not locate target kernel phy.h"
+
+if ! grep -q 'genphy_c45_oatc14_get_sqi' "$PHY_H"; then
+  t1s_warn "Target kernel lacks OATC14 diagnostics; disabling optional Microchip PHY callbacks."
+  sed -i -E '/^[[:space:]]*\.(cable_test_start|cable_test_get_status|get_sqi|get_sqi_max)[[:space:]]*=[[:space:]]*genphy_c45_oatc14_/d' "$OUT/microchip_t1s.c"
+fi
+
+if ! grep -q 'genphy_read_mmd_c45' "$PHY_H"; then
+  t1s_warn "Target kernel lacks generic direct-C45 PHY helpers; applying Microchip compatibility wrappers."
+  python3 - "$OUT/microchip_t1s.c" <<'PY'
+from pathlib import Path
+
+path = Path(__import__("sys").argv[1])
+src = path.read_text()
+marker = "#include <linux/phy.h>"
+if marker not in src:
+    raise SystemExit("Missing linux/phy.h include in Microchip source")
+wrappers = """
+/* Linux 6.12 compatibility for direct Clause-45 accesses. */
+static int beiis_microchip_read_mmd_c45(struct phy_device *phydev,
+                                        int devnum, u16 regnum)
+{
+    return mdiobus_c45_read(phydev->mdio.bus, phydev->mdio.addr,
+                            devnum, regnum);
+}
+
+static int beiis_microchip_write_mmd_c45(struct phy_device *phydev,
+                                         int devnum, u16 regnum, u16 val)
+{
+    return mdiobus_c45_write(phydev->mdio.bus, phydev->mdio.addr,
+                             devnum, regnum, val);
+}
+"""
+src = src.replace(marker, marker + "\n" + wrappers, 1)
+for original, replacement in (
+    ("= genphy_read_mmd_c45,", "= beiis_microchip_read_mmd_c45,"),
+    ("= genphy_write_mmd_c45,", "= beiis_microchip_write_mmd_c45,"),
+):
+    if original not in src:
+        raise SystemExit(f"Could not find Microchip callback: {original}")
+    src = src.replace(original, replacement)
+path.write_text(src)
+PY
+fi
+
 # Force all drivers to the exact local header used by the single provider.
 # Upstream code may use either include spelling.
 for f in "$OUT"/*.c "$OUT"/*.h; do
