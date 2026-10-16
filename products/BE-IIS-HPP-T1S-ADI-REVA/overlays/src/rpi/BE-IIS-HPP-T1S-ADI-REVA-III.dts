@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// BE-IIS-HPP-T1S-ADI-REVA, HAT++ position III
-
+// BE-IIS-HPP-T1S-ADI, HAT++ instance III
+// SPI0 CE2: BCM GPIO16; IRQ/BUSY: BCM GPIO12
+// 10BASE-T1S MAC-PHY.
+// Requires SPI0 enabled. GPIO numbers are BCM, not physical header pin numbers.
 /dts-v1/;
 /plugin/;
 
-// Local definitions avoid requiring complete kernel source headers for DT overlays.
-// Linux dt-bindings: IRQ_TYPE_LEVEL_LOW = 8, GPIO_ACTIVE_LOW = 1.
-#define IRQ_TYPE_LEVEL_LOW 8
-#define GPIO_ACTIVE_LOW 1
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/gpio/gpio.h>
 
 / {
     compatible = "brcm,bcm2835", "brcm,bcm2711", "brcm,bcm2712";
@@ -18,21 +18,19 @@
             #address-cells = <1>;
             #size-cells = <0>;
             status = "okay";
-
             num-cs = <3>;
-            cs-gpios =
-                <&gpio 8 GPIO_ACTIVE_LOW>,
-                <&gpio 7 GPIO_ACTIVE_LOW>,
-                <&gpio 16 GPIO_ACTIVE_LOW>;
+            cs-gpios = <&gpio 8 GPIO_ACTIVE_LOW>,
+                       <&gpio 7 GPIO_ACTIVE_LOW>,
+                       <&gpio 16 GPIO_ACTIVE_LOW>;
 
-            eth3: ethernet@2 {
+            ethernet@2 {
                 compatible = "adi,adin1140", "adi,ad3306";
                 reg = <2>;
+                spi-max-frequency = <20000000>;
                 pinctrl-names = "default";
                 pinctrl-0 = <&beiis_t1s_adi_iii_irq>;
                 interrupt-parent = <&gpio>;
                 interrupts = <12 IRQ_TYPE_LEVEL_LOW>;
-                spi-max-frequency = <23000000>;
                 status = "okay";
             };
         };
@@ -43,13 +41,9 @@
         __overlay__ {
             beiis_t1s_adi_iii_irq: beiis-t1s-adi-iii-irq {
                 brcm,pins = <12>;
-                brcm,function = <0>;
-                brcm,pull = <2>;
+                brcm,function = <0>; /* input */
+                brcm,pull = <2>; /* pull-up */
             };
         };
-    };
-
-    __overrides__ {
-        speed = <&eth3>, "spi-max-frequency:0";
     };
 };

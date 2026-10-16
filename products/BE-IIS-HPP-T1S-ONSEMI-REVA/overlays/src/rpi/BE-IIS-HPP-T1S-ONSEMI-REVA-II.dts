@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// BE-IIS-HPP-T1S-ONSEMI-REVA, HAT++ position II
-
+// BE-IIS-HPP-T1S-ON, HAT++ instance II
+// SPI0 CE1: BCM GPIO7; IRQ/BUSY: BCM GPIO5
+// 10BASE-T1S MAC-PHY.
+// Requires SPI0 enabled. GPIO numbers are BCM, not physical header pin numbers.
 /dts-v1/;
 /plugin/;
 
-#define IRQ_TYPE_LEVEL_LOW 8
-#define GPIO_ACTIVE_LOW 1
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/gpio/gpio.h>
 
 / {
     compatible = "brcm,bcm2835", "brcm,bcm2711", "brcm,bcm2712";
@@ -16,21 +18,19 @@
             #address-cells = <1>;
             #size-cells = <0>;
             status = "okay";
-
             num-cs = <3>;
-            cs-gpios =
-                <&gpio 8 GPIO_ACTIVE_LOW>,
-                <&gpio 7 GPIO_ACTIVE_LOW>,
-                <&gpio 16 GPIO_ACTIVE_LOW>;
+            cs-gpios = <&gpio 8 GPIO_ACTIVE_LOW>,
+                       <&gpio 7 GPIO_ACTIVE_LOW>,
+                       <&gpio 16 GPIO_ACTIVE_LOW>;
 
-            eth2: ethernet@1 {
+            ethernet@1 {
                 compatible = "onnn,s2500";
                 reg = <1>;
+                spi-max-frequency = <15000000>;
                 pinctrl-names = "default";
-                pinctrl-0 = <&beiis_t1s_onsemi_ii_irq>;
+                pinctrl-0 = <&beiis_t1s_on_ii_irq>;
                 interrupt-parent = <&gpio>;
                 interrupts = <5 IRQ_TYPE_LEVEL_LOW>;
-                spi-max-frequency = <15000000>;
                 status = "okay";
             };
         };
@@ -40,19 +40,14 @@
         target = <&spidev1>;
         __overlay__ { status = "disabled"; };
     };
-
     fragment@2 {
         target = <&gpio>;
         __overlay__ {
-            beiis_t1s_onsemi_ii_irq: beiis-t1s-onsemi-ii-irq {
+            beiis_t1s_on_ii_irq: beiis-t1s-on-ii-irq {
                 brcm,pins = <5>;
-                brcm,function = <0>;
-                brcm,pull = <2>;
+                brcm,function = <0>; /* input */
+                brcm,pull = <2>; /* pull-up */
             };
         };
-    };
-
-    __overrides__ {
-        speed = <&eth2>, "spi-max-frequency:0";
     };
 };

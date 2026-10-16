@@ -1,0 +1,98 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// BE-IIS-HPP-T1S-ADI, HAT++ instance I
+// SPI0 CE0: BCM GPIO8; IRQ/BUSY: BCM GPIO6
+// 10BASE-T1S MAC-PHY.
+// Requires SPI0 enabled. GPIO numbers are BCM, not physical header pin numbers.
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+    compatible = "brcm,bcm2835", "brcm,bcm2711", "brcm,bcm2712";
+
+    /*
+     * Shared BE-IIS ADC CONVST line: BCM GPIO23 (physical pin 16).
+     * Instance I defines this shared pin, even when Instance I is not
+     * an ADC HAT. Instances II and III must not define it again.
+     * Pinmux only: no GPIO hog, so userspace or a future controller
+     * can request the line. The consumer must set the initial level.
+     * Note: this state must be selected by a pinctrl consumer to take effect.
+     */
+    fragment@11 {
+        target = <&gpio>;
+        __overlay__ {
+            beiis_convert_pin: beiis-convert-pin {
+                brcm,pins = <23>;
+                brcm,function = <1>; /* GPIO output */
+                brcm,pull = <0>;     /* no pull */
+            };
+        };
+    };
+
+
+    fragment@0 {
+        target = <&spi0>;
+        __overlay__ {
+            #address-cells = <1>;
+            #size-cells = <0>;
+            status = "okay";
+            num-cs = <3>;
+            cs-gpios = <&gpio 8 GPIO_ACTIVE_LOW>,
+                       <&gpio 7 GPIO_ACTIVE_LOW>,
+                       <&gpio 16 GPIO_ACTIVE_LOW>;
+
+            ethernet@0 {
+                compatible = "adi,adin1140", "adi,ad3306";
+                reg = <0>;
+                spi-max-frequency = <20000000>;
+                pinctrl-names = "default";
+                pinctrl-0 = <&beiis_t1s_adi_i_irq>;
+                interrupt-parent = <&gpio>;
+                interrupts = <6 IRQ_TYPE_LEVEL_LOW>;
+                status = "okay";
+            };
+        };
+    };
+
+    fragment@1 {
+        target = <&spidev0>;
+        __overlay__ { status = "disabled"; };
+    };
+    fragment@2 {
+        target = <&gpio>;
+        __overlay__ {
+            beiis_t1s_adi_i_irq: beiis-t1s-adi-i-irq {
+                brcm,pins = <6>;
+                brcm,function = <0>; /* input */
+                brcm,pull = <2>; /* pull-up */
+            };
+        };
+    };
+    /* Keep spare HAT++ chip selects and identification resources available. */
+    fragment@3 { target = <&spidev1>; __overlay__ { status = "disabled"; }; };
+    fragment@9 {
+        target = <&i2c0>;
+        __overlay__ {
+            #address-cells = <1>;
+            #size-cells = <0>;
+            eeprom@50 { compatible = "atmel,24c32"; reg = <0x50>; status = "okay"; };
+            eeprom@60 { compatible = "atmel,24c32"; reg = <0x60>; status = "okay"; };
+            eeprom@70 { compatible = "atmel,24c32"; reg = <0x70>; status = "okay"; };
+            eeprom@74 { compatible = "atmel,24c32"; reg = <0x74>; status = "okay"; };
+            eeprom@76 { compatible = "atmel,24c32"; reg = <0x76>; status = "okay"; };
+        };
+    };
+    fragment@10 {
+        target = <&gpio>;
+        __overlay__ {
+            be_iis_porst: be-iis-porst {
+                gpio-hog;
+                gpios = <13 GPIO_ACTIVE_HIGH>;
+                output-high;
+                line-name = "BE-IIS-Power-on-reset";
+            };
+        };
+    };
+};
