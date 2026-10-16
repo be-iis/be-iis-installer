@@ -1,0 +1,3 @@
+# Generated ADI overlays are intentionally versioned.
+# Build them with: make -C products/BE-IIS-HPP-T1S-ADI-REVA/overlays/src/rpi
+!products/BE-IIS-HPP-T1S-ADI-REVA/overlays/build/rpi/*.dtbo
