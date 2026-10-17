@@ -89,29 +89,37 @@ def draw(states, active, active_output, selected, frame, plans, started, final=F
         "",
     ]
     for key in selected:
-        tasks = states[key]
-        planned = len(plans[key]) + (1 if key in T1S_PRODUCTS else 0)
-        done = len(tasks)
-        failed = any(t["status"] == "failed" for t in tasks)
-        if not planned:
-            symbol, status = "-", "No build target"
-        elif done >= planned:
-            symbol, status = ("FAIL", "Failed") if failed else ("OK", "Completed")
-        elif key in active:
-            symbol = "RUN"
-            label, phase = active[key]
-            status = f"{label}: {phase}"
-        else:
-            symbol, status = "WAIT", "Queued"
-        lines.append(f"[{symbol}] {key}: {done}/{planned} | {status}")
-        # In an interactive terminal show the latest command output directly
-        # below the corresponding RUN item.  It vanishes on the next redraw
-        # as soon as that item leaves active, keeping completed views compact.
-        if key in active:
-            recent = active_output.get(key, ())
-            if recent:
-                lines.append("  terminal:")
-                lines.extend(f"    {line}" for line in recent)
+        step_labels = [label for label, _command in plans[key]]
+        if key in T1S_PRODUCTS:
+            step_labels.append("Shared T1S compatibility build")
+        finished = {task["step"]: task for task in states[key]}
+        if not step_labels:
+            lines.append(f"[-] {key}: No build target")
+            continue
+
+        product_failed = any(task["status"] == "failed" for task in finished.values())
+        product_active = key in active
+        product_done = len(finished) >= len(step_labels)
+        product_symbol = "FAIL" if product_failed else ("RUN" if product_active else
+                         ("CHECK" if product_done else "WAIT"))
+        lines.append(f"[{product_symbol}] {key}")
+
+        active_label, _phase = active.get(key, (None, None))
+        for label in step_labels:
+            task = finished.get(label)
+            if task:
+                step_symbol = "CHECK" if task["status"] == "ok" else "FAIL"
+            elif label == active_label:
+                step_symbol = "RUN"
+            else:
+                step_symbol = "WAIT"
+            lines.append(f"  [{step_symbol}] {label}")
+            # Show only the current line of the currently running command,
+            # directly below that RUN step.  It is removed on completion.
+            if step_symbol == "RUN":
+                current = active_output.get(key, ())
+                if current:
+                    lines.append(f"    {current[-1]}")
     lines.append("")
     if not final:
         lines.append("Progress counts completed tasks, not internal compiler work.")
@@ -219,7 +227,7 @@ def main():
     def shared_t1s_worker():
         if not t1s_keys:
             return
-        label = "Shared T1S kernel module rebuild" if t1s_missing else "Shared T1S native check / compatibility build"
+        label = "Shared T1S compatibility build"
         command = (["bash", "tools/kernel/t1s_unified_build.sh"] if t1s_missing
                    else [sys.executable, "compatibility/t1s/ensure.py", *t1s_products])
         with lock:
