@@ -16,6 +16,20 @@ t1s_warn() { printf 'WARNING: %s\n' "$*" >&2; }
 t1s_note() { printf '%s\n' "$*"; }
 t1s_require() { command -v "$1" >/dev/null 2>&1 || t1s_die "Required command not found: $1"; }
 
+# Keep a small, per-driver provenance record next to the downloaded sources.
+# The unified build report must say exactly which baseline was selected; a
+# successful compilation alone does not make a backport's origin obvious.
+t1s_source_record() {
+    local repo_root="$1" target="$2" baseline="$3" detail="$4"
+    local record="$repo_root/build/t1s-source/source-${target}.env"
+    mkdir -p "$(dirname "$record")"
+    {
+        printf 'TARGET=%q\n' "$target"
+        printf 'BASELINE=%q\n' "$baseline"
+        printf 'DETAIL=%q\n' "$detail"
+    } > "$record"
+}
+
 t1s_kernel_branch() {
     local kver="${1:-$(uname -r)}" major minor
     major="${kver%%.*}"
@@ -285,6 +299,7 @@ t1s_prepare_source() {
     for local_src in "/lib/modules/$kver/source" "/lib/modules/$kver/build"; do
         if [[ -d "$local_src" ]] && t1s_has_target "$local_src" "$target"; then
             t1s_note "Using local sources for running kernel $kver: $local_src" >&2
+            t1s_source_record "$repo_root" "$target" "running-kernel" "$kver ($local_src)"
             printf '%s\n' "$local_src"
             return 0
         fi
@@ -295,6 +310,7 @@ t1s_prepare_source() {
     # S2500 arrived later: its validated v8 series remains the fallback.
     if tree="$(t1s_prepare_upstream_72 "$repo_root" "$target")"; then
         t1s_note "Using upstream Linux v7.2 $target sources." >&2
+        t1s_source_record "$repo_root" "$target" "Linux v7.2" "complete $target source set"
         printf '%s\n' "$tree"
         return 0
     fi
@@ -312,6 +328,7 @@ t1s_prepare_source() {
     # LAN865x may already be present at the selected base; if not, fetch just
     # their driver files from current upstream.
     [[ -n "$tree" && -d "$tree" ]] || { t1s_warn "No valid source directory for $target"; return 1; }
+    local supplement=""
     if ! t1s_has_target "$tree" "$target"; then
         # Missing MAC-PHY drivers are sourced from the requested Linux 7.2
         # baseline. Never fetch moving 'master' into a pinned OA-TC6 stack.
@@ -322,9 +339,13 @@ t1s_prepare_source() {
             t1s_fetch "$raw/$path" "$tree/$path" ||
                 t1s_die "Required upstream source not found: $path"
         done < <(t1s_target_files "$target")
+        supplement=" + Linux v7.2 driver files"
     fi
 
     t1s_has_target "$tree" "$target" || { t1s_warn "Required $target source set is incomplete"; return 1; }
 
+    t1s_source_record "$repo_root" "$target" \
+        "onsemi S2500 v8 series" \
+        "net-next base $S2500_BASE_COMMIT; series $S2500_SERIES_MSGID$supplement"
     printf '%s\n' "$tree"
 }
