@@ -15,7 +15,9 @@ NETDEV_H="$KDIR/include/linux/netdevice.h"
 python3 "$ROOT/scripts/check_t1s_stack.py" "$OUT"
 
 source_record() {
-    local target="$1" record="$ROOT/build/t1s-source/source-${target}.env"
+    local target record
+    target="$1"
+    record="$ROOT/build/t1s-source/source-${target}.env"
     if [[ -r "$record" ]]; then
         # Generated locally by t1s_source_common.sh with shell-quoted values.
         # shellcheck disable=SC1090
