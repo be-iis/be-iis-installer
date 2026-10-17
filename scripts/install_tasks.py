@@ -21,6 +21,7 @@ DRIVER_BUILDS = {
     "BE-IIS-HPP-T1L-REVB": ("adin1110", ["adin1110"]),
 }
 T1S_PRODUCTS = {"BE-IIS-HPP-T1S-ADI-REVA": "adi", "BE-IIS-HPP-T1S-ONSEMI-REVA": "onsemi", "BE-IIS-HPP-T1S-REVB": "microchip"}
+TC6_STACK = "OA-TC6 shared driver stack"
 # A single independent worker owns each driver build directory.
 # Product tasks only build when outputs are missing, unless --rebuild is used.
 PRODUCT_MODULES = {
@@ -95,7 +96,7 @@ def draw(states, active, active_output, selected, frame, plans, started, final=F
 
     def terminal_line(line):
         return f"\033[32m    {line}\033[0m" if interactive else f"    {line}"
-    total = sum(len(plans[k]) for k in selected) + sum(k in T1S_PRODUCTS for k in selected)
+    total = sum(len(plans[k]) for k in selected)
     completed = sum(len(states[k]) for k in selected)
     percent = round(100 * completed / total) if total else 100
     elapsed = int(time.monotonic() - started)
@@ -105,8 +106,6 @@ def draw(states, active, active_output, selected, frame, plans, started, final=F
     ]
     for key in selected:
         step_labels = [label for label, _command in plans[key]]
-        if key in T1S_PRODUCTS:
-            step_labels.append("Shared T1S compatibility build")
         finished = {task["step"]: task for task in states[key]}
         if not step_labels:
             lines.append(f"{tag('-')} {key}: No build target")
@@ -121,7 +120,7 @@ def draw(states, active, active_output, selected, frame, plans, started, final=F
 
         # A product that has not started yet stays compact.  Its individual
         # steps are revealed only once work on that product actually begins.
-        if not finished and not product_active:
+        if (not finished and not product_active) or (product_done and not product_failed):
             continue
 
         active_label, _phase = active.get(key, (None, None))
@@ -195,13 +194,20 @@ def main():
         return 0
     if args.jobs < 1:
         parser.error("--jobs must be at least 1")
-    selected = list(dict.fromkeys(ALIASES.get(k, k) for k in (args.tasks or list(TASKS))))
-    for key in selected:
+    product_selected = list(dict.fromkeys(ALIASES.get(k, k) for k in (args.tasks or list(TASKS))))
+    for key in product_selected:
         if key not in TASKS:
             parser.error(f"unknown product: {key}")
+    t1s_keys = [key for key in product_selected if key in T1S_PRODUCTS]
+    selected = list(product_selected)
+    if t1s_keys:
+        first_t1s = min(selected.index(key) for key in t1s_keys)
+        selected.insert(first_t1s, TC6_STACK)
     # Prepare execution plans before starting any parallel workers.
     plans = {}
-    for key in selected:
+    if t1s_keys:
+        plans[TC6_STACK] = [("Unified OA-TC6 and T1S MAC-PHY modules", None)]
+    for key in product_selected:
         plans[key] = []
         command = product_build_command(key, args.rebuild)
         if command:
@@ -214,7 +220,6 @@ def main():
             if args.rebuild and label == "Device-tree overlays":
                 plans[key].append(("Device-tree clean", ["make", "-C", command[-1], "clean"]))
             plans[key].append((label, command))
-    t1s_keys = [k for k in selected if k in T1S_PRODUCTS]
     t1s_products = [T1S_PRODUCTS[k] for k in t1s_keys]
     t1s_missing = bool(t1s_keys and args.rebuild)
     states = {key: [] for key in selected}
@@ -226,6 +231,8 @@ def main():
 
     def worker(key):
         for label, command in plans[key]:
+            if command is None:
+                continue
             with lock:
                 active[key] = (label, "Starting")
             def progress(status, line=""):
@@ -244,39 +251,45 @@ def main():
                 active.pop(key, None)
                 active_output.pop(key, None)
 
-    def shared_t1s_worker():
-        if not t1s_keys:
-            return
-        label = "Shared T1S compatibility build"
+    def tc6_worker():
+        label = "Unified OA-TC6 and T1S MAC-PHY modules"
         command = (["bash", "tools/kernel/t1s_unified_build.sh"] if t1s_missing
                    else [sys.executable, "compatibility/t1s/ensure.py", *t1s_products])
         with lock:
-            for key in t1s_keys:
-                active[key] = (label, "Starting")
+            active[TC6_STACK] = (label, "Starting")
         def progress(status, line=""):
             with lock:
-                for key in t1s_keys:
-                    active[key] = (label, status)
-                    if line:
-                        active_output.setdefault(key, deque(maxlen=1)).append(line)
+                active[TC6_STACK] = (label, status)
+                if line:
+                    active_output.setdefault(TC6_STACK, deque(maxlen=1)).append(line)
         code, output = run_command(command, progress)
         with lock:
-            for key in t1s_keys:
-                states[key].append({"step": label, "command": command,
-                                    "status": "ok" if code == 0 else "failed",
-                                    "returncode": code, "output": output,
-                                    "compatibility": True})
-                active.pop(key, None)
-                active_output.pop(key, None)
+            status = "ok" if code == 0 else "failed"
+            states[TC6_STACK].append({"step": label, "command": command,
+                                      "status": status, "returncode": code,
+                                      "output": output, "compatibility": True})
+            active.pop(TC6_STACK, None)
+            active_output.pop(TC6_STACK, None)
 
     frame = 0
     started = time.monotonic()
     draw(states, active, active_output, selected, frame, plans, started)
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        futures = [pool.submit(worker, key) for key in selected]
+        futures = []
+        tc6_future = None
         if t1s_keys:
-            futures.append(pool.submit(shared_t1s_worker))
-        while not all(f.done() for f in futures):
+            tc6_future = pool.submit(tc6_worker)
+            futures.append(tc6_future)
+        futures.extend(pool.submit(worker, key) for key in product_selected if key not in t1s_keys)
+        t1s_workers_started = not t1s_keys
+        while True:
+            if tc6_future is not None and tc6_future.done() and not t1s_workers_started:
+                tc6_future.result()
+                t1s_workers_started = True
+                if states[TC6_STACK][-1]["status"] == "ok":
+                    futures.extend(pool.submit(worker, key) for key in t1s_keys)
+            if t1s_workers_started and all(f.done() for f in futures):
+                break
             with lock:
                 if frame % 5 == 0 or sys.stdout.isatty():
                     draw(states, active, active_output, selected, frame, plans, started)
