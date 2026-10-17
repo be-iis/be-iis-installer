@@ -15,17 +15,11 @@ ROOT = Path(__file__).resolve().parents[1]
 KERNEL = os.uname().release
 # Do not execute arbitrary product install.sh scripts: many are placeholders,
 # and some may alter /boot or /lib/modules. Build targets are safe to discover.
-# The first pass checks installed modules; only onsemi and Microchip can\n# retry with a sequential backport build. The Microchip script keeps its B1 logic.
+# T1S compatibility is delegated once, after ordinary product tasks.
 DRIVER_BUILDS = {
-    "BE-IIS-HPP-T1S-ADI-REVA": ("adin1140", ["adin1140", "adin1140-phy", "oa_tc6"]),
-    "BE-IIS-HPP-T1S-ONSEMI-REVA": ("s2500", ["s2500", "ncn26000", "oa_tc6"]),
     "BE-IIS-HPP-T1L-REVB": ("adin1110", ["adin1110"]),
 }
-MICROCHIP_SCRIPT = "tools/kernel/lan865x_mod_build.sh"
-RETRY_BUILDS = {
-    "BE-IIS-HPP-T1S-ONSEMI-REVA": ("s2500 backport build", ["bash", "tools/kernel/s2500_mod_build.sh"]),
-    "BE-IIS-HPP-T1S-REVB": ("Microchip B1 compatibility build", ["bash", MICROCHIP_SCRIPT]),
-}
+T1S_PRODUCTS = {"BE-IIS-HPP-T1S-ADI-REVA": "adi", "BE-IIS-HPP-T1S-ONSEMI-REVA": "onsemi", "BE-IIS-HPP-T1S-REVB": "microchip"}
 
 ALIASES = {
     "adi": "BE-IIS-HPP-T1S-ADI-REVA",
@@ -47,10 +41,6 @@ def discover_tasks():
             name, modules = DRIVER_BUILDS[key]
             steps.append((f"{name} native kernel driver check", [
                 sys.executable, "scripts/check_kernel_modules.py", *modules
-            ]))
-        elif key == "BE-IIS-HPP-T1S-REVB":
-            steps.append(("Microchip installed kernel driver check", [
-                sys.executable, "scripts/check_kernel_modules.py", "lan865x", "microchip_t1s", "oa_tc6"
             ]))
         overlay = product / "overlays" / "src" / "rpi" / "Makefile"
         if overlay.is_file():
@@ -119,7 +109,6 @@ def main():
     parser.add_argument("--list", action="store_true", help="List discovered products and build targets")
     parser.add_argument("--report", default="build/install-report.json")
     parser.add_argument("--jobs", type=int, default=3, help="Maximum parallel products (default 3)")
-    parser.add_argument("--install-built", action="store_true", help="Attempt guarded installation of built onsemi modules (requires sudo)")
     args = parser.parse_args()
     if args.list:
         for key, (name, steps) in TASKS.items():
@@ -164,54 +153,18 @@ def main():
             time.sleep(0.2)
         for future in futures:
             future.result()
-    # Phase 2: only retry failed native-driver checks for onsemi/Microchip.
-    # No parallel backport builds. Do not retry unrelated overlay failures.
-    for key in selected:
-        if key not in RETRY_BUILDS or not states[key]:
-            continue
-        original = states[key][0]
-        if original["status"] != "failed":
-            continue
-        label, command = RETRY_BUILDS[key]
-        if not (ROOT / command[1]).is_file():
-            states[key].append({"step": label, "command": command, "status": "failed",
-                                "returncode": 127, "output": "Backport build script missing", "retry": True})
-            continue
-        with lock:
-            active[key] = (label, "Trying kernel compatibility backport")
-        def retry_progress(status):
-            with lock:
-                active[key] = (label, status)
-        try:
-            code, output = run_command(command, retry_progress)
-        except Exception as exc:
-            code, output = 127, str(exc)
-        states[key].append({"step": label, "command": command,
-                            "status": "ok" if code == 0 else "failed",
-                            "returncode": code, "output": output, "retry": True})
-        if code == 0:
-            original["backport_built"] = True
-            if args.install_built and key == "BE-IIS-HPP-T1S-ONSEMI-REVA":
-                install_cmd = ["sudo", "-n", sys.executable, "scripts/install_s2500_modules.py"]
-                install_code, install_log = run_command(install_cmd, retry_progress)
-                states[key].append({"step": "Guarded onsemi module installation",
-                                    "command": install_cmd,
-                                    "status": "ok" if install_code == 0 else "failed",
-                                    "returncode": install_code, "output": install_log, "retry": True})
-                if install_code == 0:
-                    check_cmd = [sys.executable, "scripts/check_kernel_modules.py",
-                                 "s2500", "ncn26000", "oa_tc6"]
-                    verify_code, verify_log = run_command(check_cmd, retry_progress)
-                    states[key].append({"step": "Post-install module verification",
-                                        "command": check_cmd,
-                                        "status": "ok" if verify_code == 0 else "failed",
-                                        "returncode": verify_code, "output": verify_log, "retry": True})
-                    if verify_code == 0:
-                        original["recovered"] = True
-            # A successful build alone is not an installed driver.
-        with lock:
-            active.pop(key, None)
-            draw(states, active, selected, frame)
+    # One shared T1S compatibility pass, never one competing build per product.
+    selected_t1s = [T1S_PRODUCTS[k] for k in selected if k in T1S_PRODUCTS]
+    if selected_t1s:
+        label = "Shared T1S native check / compatibility build"
+        command = [sys.executable, "compatibility/t1s/ensure.py", *selected_t1s]
+        code, output = run_command(command, lambda status: None)
+        for key in selected:
+            if key in T1S_PRODUCTS:
+                states[key].append({"step": label, "command": command,
+                                    "status": "ok" if code == 0 else "failed",
+                                    "returncode": code, "output": output,
+                                    "compatibility": True})
     draw(states, active, selected, frame)
     report = {"timestamp": dt.datetime.now(dt.timezone.utc).isoformat(),
               "kernel": KERNEL, "tasks": states}
