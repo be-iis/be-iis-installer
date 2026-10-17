@@ -66,14 +66,6 @@ for product_dir in "$PRODUCTS_DIR"/BE-IIS*; do
         install -D -m 0644 "$dtbo" "$OVERLAY_DST/$filename"
         count=$((count + 1))
 
-        # The HAT+ EEPROM dt_blob names omit the internal revision suffix.
-        # Publish the matching alias as well as the revisioned build artifact.
-        if [[ "$filename" == *-REVA-*.dtbo ]]; then
-            alias_name="${filename/-REVA-/-}"
-            log "Copying EEPROM alias $alias_name"
-            install -D -m 0644 "$dtbo" "$OVERLAY_DST/$alias_name"
-            count=$((count + 1))
-        fi
     done
 
     if [[ "$found_dtbo" -eq 0 ]]; then
