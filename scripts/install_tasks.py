@@ -76,36 +76,42 @@ TASKS = discover_tasks()
 
 SPINNER = "/-\\|"
 
-def draw(states, active, selected, frame, plans):
+def draw(states, active, selected, frame, plans, started, final=False):
+    """Show completed-step percentage; never guess compiler substep progress."""
     interactive = sys.stdout.isatty() and not os.getenv("NO_COLOR")
+    total = sum(len(plans[k]) for k in selected) + sum(k in T1S_PRODUCTS for k in selected)
+    completed = sum(len(states[k]) for k in selected)
+    percent = round(100 * completed / total) if total else 100
+    elapsed = int(time.monotonic() - started)
+    lines = [
+        f"BE-IIS build | Kernel {KERNEL} | {percent}% ({completed}/{total} tasks) | {elapsed}s elapsed",
+        "",
+    ]
+    for key in selected:
+        tasks = states[key]
+        planned = len(plans[key]) + (1 if key in T1S_PRODUCTS else 0)
+        done = len(tasks)
+        failed = any(t["status"] == "failed" for t in tasks)
+        if not planned:
+            symbol, status = "-", "No build target"
+        elif done >= planned:
+            symbol, status = ("FAIL", "Failed") if failed else ("OK", "Completed")
+        elif key in active:
+            symbol = "RUN"
+            label, phase = active[key]
+            status = f"{label}: {phase}"
+        else:
+            symbol, status = "WAIT", "Queued"
+        lines.append(f"[{symbol}] {key}: {done}/{planned} | {status}")
+    lines.append("")
+    if not final:
+        lines.append("Progress counts completed tasks, not internal compiler work.")
     if interactive:
         sys.stdout.write("\x1b[2J\x1b[H")
-    print(f"BE-IIS build  •  {KERNEL}  •  parallel tasks")
-    print()
-    for key in selected:
-        name, steps = TASKS[key]
-        results = states[key]
-        regular = [x for x in results if not x.get("compatibility") and not x.get("retry")]
-        total = len(plans[key]) + (1 if key in T1S_PRODUCTS else 0)
-        attempted = len(regular) + sum(bool(x.get("compatibility")) for x in results)
-        failed = any(x["status"] == "failed" and not x.get("recovered") for x in results)
-        complete = attempted >= total
-        icon = "—" if total == 0 else "✓" if complete and not failed else "!" if failed else "◉" if key in active else "○"
-        print(f"{icon} {name} ({attempted}/{total} attempted)" if total else f"— {name} (no build target; skipped)")
-        if key in active:
-            label, status = active[key]
-            spin = SPINNER[frame % len(SPINNER)] if interactive else ">"
-            print(f"  {spin} {label}: {status}")
-        for retry in (x for x in results if x.get("retry")):
-            print(f"  {'✓' if retry['status'] == 'ok' else '✗'} {retry['step']} — " + ("built, not installed" if retry["status"] == "ok" else "failed"))
-        for index, (label, _) in enumerate(plans[key]):
-            if index < len(results):
-                if results[index]["status"] == "failed":
-                    symbol = "↻" if results[index].get("recovered") else "✗"
-                    print(f"  {symbol} {label} — " + ("backport compiled, not installed" if results[index].get("backport_built") else "failed (see report)"))
-            elif key not in active or active[key][0] != label:
-                print(f"  ☐ {label}")
-    print(flush=True)
+    else:
+        # Periodic snapshots also work in pipes and captured logs.
+        lines.append("")
+    print("\n".join(lines), flush=True)
 
 def run_command(command, progress):
     try:
@@ -126,7 +132,9 @@ def run_command(command, progress):
             elif any(word in low for word in ("cc [m]", "ld [m]", "building", "  cc ", "  ld ")):
                 progress("Compiling kernel modules")
             elif "entering directory" in low:
-                progress("Building device-tree overlays")
+                progress("Running make")
+            elif "nothing to be done" in low:
+                progress("Up to date")
     except Exception as exc:
         output.append(f"Installer stream error: {exc}\n")
     return proc.wait(), "".join(output)
@@ -159,7 +167,7 @@ def main():
         command = product_build_command(key, args.rebuild)
         if command:
             plans[key].append(("Kernel module build", command))
-        for label, command in plans[key]:
+        for label, command in TASKS[key][1]:
             # Native module availability is not a build target. The module
             # builder above is authoritative for T1L; keep overlays.
             if label.endswith("native kernel driver check"):
@@ -177,7 +185,7 @@ def main():
     report_path.parent.mkdir(parents=True, exist_ok=True)
 
     def worker(key):
-        for label, command in TASKS[key][1]:
+        for label, command in plans[key]:
             with lock:
                 active[key] = (label, "Starting")
             def progress(status):
@@ -202,7 +210,11 @@ def main():
         with lock:
             for key in t1s_keys:
                 active[key] = (label, "Starting")
-        code, output = run_command(command, lambda status: None)
+        def progress(status):
+            with lock:
+                for key in t1s_keys:
+                    active[key] = (label, status)
+        code, output = run_command(command, progress)
         with lock:
             for key in t1s_keys:
                 states[key].append({"step": label, "command": command,
@@ -212,18 +224,21 @@ def main():
                 active.pop(key, None)
 
     frame = 0
+    started = time.monotonic()
+    draw(states, active, selected, frame, plans, started)
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
         futures = [pool.submit(worker, key) for key in selected]
         if t1s_keys:
             futures.append(pool.submit(shared_t1s_worker))
         while not all(f.done() for f in futures):
             with lock:
-                draw(states, active, selected, frame, plans)
+                if frame % 5 == 0 or sys.stdout.isatty():
+                    draw(states, active, selected, frame, plans, started)
             frame += 1
-            time.sleep(0.2)
+            time.sleep(1.0)
         for future in futures:
             future.result()
-    draw(states, active, selected, frame, plans)
+    draw(states, active, selected, frame, plans, started, final=True)
     report = {"timestamp": dt.datetime.now(dt.timezone.utc).isoformat(),
               "kernel": KERNEL, "tasks": states}
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
