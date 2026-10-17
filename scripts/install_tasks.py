@@ -177,7 +177,7 @@ def main():
             plans[key].append((label, command))
     t1s_keys = [k for k in selected if k in T1S_PRODUCTS]
     t1s_products = [T1S_PRODUCTS[k] for k in t1s_keys]
-    t1s_missing = t1s_keys and (args.rebuild or not have_outputs("t1s-unified", T1S_OUTPUTS))
+    t1s_missing = bool(t1s_keys and args.rebuild)
     states = {key: [] for key in selected}
     active = {}
     lock = threading.Lock()
@@ -204,7 +204,7 @@ def main():
     def shared_t1s_worker():
         if not t1s_keys:
             return
-        label = "Shared T1S kernel module build" if t1s_missing else "Shared T1S native check"
+        label = "Shared T1S kernel module rebuild" if t1s_missing else "Shared T1S native check / compatibility build"
         command = (["bash", "tools/kernel/t1s_unified_build.sh"] if t1s_missing
                    else [sys.executable, "compatibility/t1s/ensure.py", *t1s_products])
         with lock:

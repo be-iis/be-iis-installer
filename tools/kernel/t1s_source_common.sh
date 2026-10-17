@@ -128,6 +128,31 @@ t1s_prepare_rpi_files() {
     printf '%s\n' "$tree"
 }
 
+# Prefer the complete Linux 7.2 driver API for older Raspberry Pi kernels.
+# Download only the files required by the requested MAC-PHY/PHY.
+t1s_prepare_upstream_72() {
+    local repo_root="$1" target="$2"
+    local tree="$repo_root/build/t1s-source/linux-v7.2-$target"
+    local base="https://raw.githubusercontent.com/torvalds/linux/v7.2"
+    local path
+    if t1s_has_target "$tree" "$target"; then
+        printf '%s\n' "$tree"
+        return 0
+    fi
+    rm -rf "$tree"
+    mkdir -p "$tree"
+    while IFS= read -r path; do
+        [[ -n "$path" ]] || continue
+        if ! t1s_fetch "$base/$path" "$tree/$path"; then
+            t1s_warn "Linux 7.2 does not provide $path for $target"
+            rm -rf "$tree"
+            return 1
+        fi
+    done < <({ t1s_common_files; t1s_target_files "$target"; } | awk '!seen[$0]++')
+    t1s_has_target "$tree" "$target" || return 1
+    printf '%s\n' "$tree"
+}
+
 t1s_prepare_upstream_v8() {
     local repo_root="$1" target="${2:-s2500}"
     local tree="$repo_root/build/t1s-source/net-next-s2500-v8-$target"
@@ -266,14 +291,16 @@ t1s_prepare_source() {
     done
     branch="$(t1s_kernel_branch "$kver")"
 
-    if tree="$(t1s_prepare_rpi_files "$repo_root" "$target" "$branch")"; then
-        t1s_note "Using only the required files from Raspberry Pi $branch." >&2
+    # Use Linux 7.2 when the running kernel does not have this T1S stack.
+    # S2500 arrived later: its validated v8 series remains the fallback.
+    if tree="$(t1s_prepare_upstream_72 "$repo_root" "$target")"; then
+        t1s_note "Using upstream Linux v7.2 $target sources." >&2
         printf '%s\n' "$tree"
-        return
+        return 0
     fi
 
-    t1s_warn "Raspberry Pi $branch lacks $target and/or the S2500-generation OA-TC6 feature set."
-    t1s_warn "Fetching only the files touched by the upstream S2500 $S2500_SERIES_VERSION series."
+    t1s_warn "Linux v7.2 lacks the complete $target source set."
+    t1s_warn "Falling back to the later upstream S2500 $S2500_SERIES_VERSION patch series."
     t1s_warn "No complete Raspberry Pi or Linux kernel tree will be cloned."
 
     tree="$(t1s_prepare_upstream_v8 "$repo_root" "$target")" || {
