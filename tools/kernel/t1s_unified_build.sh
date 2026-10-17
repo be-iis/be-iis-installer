@@ -7,6 +7,11 @@ source "$ROOT/tools/kernel/t1s_source_common.sh"
 KVER="$(uname -r)"
 KDIR="/lib/modules/$KVER/build"
 OUT="$ROOT/build/t1s-unified"
+MODE="${1:-all}"
+case "$MODE" in
+  all|--core-only) ;;
+  *) t1s_die "Usage: $0 [--core-only]" ;;
+esac
 [[ -d "$KDIR" ]] || t1s_die "Missing headers for $KVER"
 for tool in make modinfo python3; do t1s_require "$tool"; done
 
@@ -157,6 +162,7 @@ printf 'Building independent OA-TC6 provider first\n'
 make -C "$KDIR" M="$CORE" modules
 [[ -s "$CORE/oa_tc6.ko" && -s "$CORE/Module.symvers" ]] ||
   t1s_die "Independent OA-TC6 build did not produce module symbols"
+printf 'Independent OA-TC6 provider built: %s\n' "$CORE/oa_tc6.ko"
 
 for f in adin1140.c adin1140-phy.c oa_tc6_local.h; do cp "$OUT/source/$f" "$ADIN/$f"; done
 cat > "$ADIN/Makefile" <<'EOF'
@@ -175,15 +181,15 @@ cat > "$MICROCHIP/Makefile" <<'EOF'
 obj-m := lan865x.o microchip_t1s.o
 EOF
 
-build_macphy() {
-  local name="$1" directory="$2"
-  printf 'Building %s MAC-PHY modules against OA-TC6 Module.symvers\n' "$name"
-  make -C "$KDIR" M="$directory" KBUILD_EXTRA_SYMBOLS="$CORE/Module.symvers" modules
-}
+if [[ "$MODE" == "--core-only" ]]; then
+  cp "$CORE/oa_tc6.ko" "$OUT/oa_tc6.ko"
+  printf 'OA-TC6 provider prepared; MAC-PHY builds are intentionally pending.\n'
+  exit 0
+fi
 
-build_macphy ADIN1140 "$ADIN" & adin_pid=$!
-build_macphy onsemi "$ONSEMI" & onsemi_pid=$!
-build_macphy Microchip "$MICROCHIP" & microchip_pid=$!
+bash "$ROOT/tools/kernel/t1s_macphy_build.sh" adi & adin_pid=$!
+bash "$ROOT/tools/kernel/t1s_macphy_build.sh" onsemi & onsemi_pid=$!
+bash "$ROOT/tools/kernel/t1s_macphy_build.sh" microchip & microchip_pid=$!
 macphy_status=0
 wait "$adin_pid" || macphy_status=1
 wait "$onsemi_pid" || macphy_status=1
