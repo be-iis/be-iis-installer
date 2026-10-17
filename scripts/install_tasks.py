@@ -104,6 +104,11 @@ def draw(states, active, active_output, selected, frame, plans, started, final=F
                          ("CHECK" if product_done else "WAIT"))
         lines.append(f"[{product_symbol}] {key}")
 
+        # A product that has not started yet stays compact.  Its individual
+        # steps are revealed only once work on that product actually begins.
+        if not finished and not product_active:
+            continue
+
         active_label, _phase = active.get(key, (None, None))
         for label in step_labels:
             task = finished.get(label)
