@@ -95,7 +95,7 @@ def draw(states, active, active_output, selected, frame, plans, started, final=F
         return f"\033[{colour}m[{symbol}]\033[0m" if colour else f"[{symbol}]"
 
     def terminal_line(line):
-        return f"\033[32m    {line}\033[0m" if interactive else f"    {line}"
+        return f"\033[36m    {line}\033[0m" if interactive else f"    {line}"
     total = sum(len(plans[k]) for k in selected)
     completed = sum(len(states[k]) for k in selected)
     percent = round(100 * completed / total) if total else 100
