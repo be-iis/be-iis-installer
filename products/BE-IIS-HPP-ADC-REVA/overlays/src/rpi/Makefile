@@ -3,7 +3,8 @@ CPP ?= gcc
 KERNEL_HEADERS ?= /lib/modules/$(shell uname -r)/build
 BUILD_DIR ?= ../../build/rpi
 
-CPP_INCLUDES := -I$(KERNEL_HEADERS)/include -I.
+COMMON_HEADERS := /usr/src/linux-headers-$(shell uname -r | sed 's/-rpi-.*//')-common-rpi/include
+CPP_INCLUDES := -I$(KERNEL_HEADERS)/include -I$(COMMON_HEADERS) -I.
 DTC_FLAGS := -@ -H epapr -Wno-unit_address_vs_reg
 DTS_FILES := $(wildcard *.dts)
 DTBO_FILES := $(patsubst %.dts,$(BUILD_DIR)/%.dtbo,$(DTS_FILES))
