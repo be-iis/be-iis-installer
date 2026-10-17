@@ -206,7 +206,7 @@ def main():
     # Prepare execution plans before starting any parallel workers.
     plans = {}
     if t1s_keys:
-        plans[TC6_STACK] = [("Unified OA-TC6 and T1S MAC-PHY modules", None)]
+        plans[TC6_STACK] = [("Independent OA-TC6 provider", None)]
     for key in product_selected:
         plans[key] = []
         command = product_build_command(key, args.rebuild)
@@ -220,6 +220,8 @@ def main():
             if args.rebuild and label == "Device-tree overlays":
                 plans[key].append(("Device-tree clean", ["make", "-C", command[-1], "clean"]))
             plans[key].append((label, command))
+    for key in t1s_keys:
+        plans[key].insert(0, ("T1S MAC-PHY modules", ["bash", "tools/kernel/t1s_macphy_build.sh", T1S_PRODUCTS[key]]))
     t1s_products = [T1S_PRODUCTS[k] for k in t1s_keys]
     t1s_missing = bool(t1s_keys and args.rebuild)
     states = {key: [] for key in selected}
@@ -252,9 +254,8 @@ def main():
                 active_output.pop(key, None)
 
     def tc6_worker():
-        label = "Unified OA-TC6 and T1S MAC-PHY modules"
-        command = (["bash", "tools/kernel/t1s_unified_build.sh"] if t1s_missing
-                   else [sys.executable, "compatibility/t1s/ensure.py", *t1s_products])
+        label = "Independent OA-TC6 provider"
+        command = ["bash", "tools/kernel/t1s_unified_build.sh", "--core-only"]
         with lock:
             active[TC6_STACK] = (label, "Starting")
         def progress(status, line=""):
