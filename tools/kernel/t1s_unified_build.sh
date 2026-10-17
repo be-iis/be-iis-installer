@@ -48,6 +48,37 @@ for f in "$OUT"/*.c "$OUT"/*.h; do
   sed -i 's@#include <linux/oa_tc6.h>@#include "oa_tc6_local.h"@g' "$f"
 done
 
+# The S2500 OA-TC6 core may expose the newer three-argument init API,
+# while LAN865x still calls the older two-argument form. Adapt only when
+# the prepared local header actually declares a quirks parameter.
+python3 - "$OUT/oa_tc6_local.h" "$OUT/lan865x.c" <<'PY'
+import pathlib
+import re
+import sys
+
+header = pathlib.Path(sys.argv[1]).read_text()
+source_path = pathlib.Path(sys.argv[2])
+source = source_path.read_text()
+
+declarations = re.findall(r'\boa_tc6_init\s*\(([^;{}]*)\)\s*;', header, re.S)
+if len(declarations) != 1:
+    raise SystemExit("Expected exactly one oa_tc6_init declaration in local header")
+parameters = [p.strip() for p in declarations[0].split(",")]
+old_call = re.compile(r'\boa_tc6_init\s*\(\s*spi\s*,\s*netdev\s*\)')
+matches = len(old_call.findall(source))
+
+if len(parameters) == 2:
+    print("LAN865x: OA-TC6 init uses two arguments; no adjustment needed")
+elif len(parameters) == 3 and "quirks" in parameters[2]:
+    if matches != 1:
+        raise SystemExit(f"Expected one LAN865x two-argument init call; found {matches}")
+    source = old_call.sub("oa_tc6_init(spi, netdev, NULL)", source)
+    source_path.write_text(source)
+    print("LAN865x: adapted OA-TC6 init to three-argument quirks API")
+else:
+    raise SystemExit(f"Unsupported OA-TC6 init signature: {declarations[0]!r}")
+PY
+
 cat > "$OUT/Makefile" <<'EOF'
 obj-m := oa_tc6.o lan865x.o microchip_t1s.o adin1140.o adin1140-phy.o s2500.o ncn26000.o
 oa_tc6-y := oa_tc6_core.o oa_tc6_ptp.o oa_tc6_tstamp.o
