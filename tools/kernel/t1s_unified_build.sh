@@ -162,6 +162,7 @@ printf 'Building independent OA-TC6 provider first\n'
 make -C "$KDIR" M="$CORE" modules
 [[ -s "$CORE/oa_tc6.ko" && -s "$CORE/Module.symvers" ]] ||
   t1s_die "Independent OA-TC6 build did not produce module symbols"
+cp "$CORE/Module.symvers" "$OUT/Module.symvers"
 printf 'Independent OA-TC6 provider built: %s\n' "$CORE/oa_tc6.ko"
 
 for f in adin1140.c adin1140-phy.c oa_tc6_local.h; do cp "$OUT/source/$f" "$ADIN/$f"; done
