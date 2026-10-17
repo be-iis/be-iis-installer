@@ -61,7 +61,7 @@ mkdir -p "$BUILD_DIR"
 STEP="STEP3"
 say "$STEP" "Downloading sources"
 
-BASE_URL="https://raw.githubusercontent.com/raspberrypi/linux/rpi-6.12.y/drivers/tty/serial"
+BASE_URL="https://raw.githubusercontent.com/raspberrypi/linux/rpi-${KVER%%.*}.$(echo "$KVER" | cut -d. -f2).y/drivers/tty/serial"
 
 wget -q -O "$BUILD_DIR/sc16is7xx.c"     "$BASE_URL/sc16is7xx.c"
 wget -q -O "$BUILD_DIR/sc16is7xx_spi.c" "$BASE_URL/sc16is7xx_spi.c"

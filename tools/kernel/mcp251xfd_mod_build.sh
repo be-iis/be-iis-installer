@@ -60,7 +60,7 @@ mkdir -p "$BUILD_DIR"
 STEP="STEP3"
 say "$STEP" "Downloading sources"
 
-BASE_URL="https://raw.githubusercontent.com/raspberrypi/linux/rpi-6.12.y/drivers/net/can/spi/mcp251xfd"
+BASE_URL="https://raw.githubusercontent.com/raspberrypi/linux/rpi-${KVER%%.*}.$(echo "$KVER" | cut -d. -f2).y/drivers/net/can/spi/mcp251xfd"
 
 for f in \
     mcp251xfd-core.c \
