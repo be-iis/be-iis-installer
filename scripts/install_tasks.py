@@ -204,7 +204,7 @@ def main():
                 with lock:
                     active[key] = (label, status)
                     if line:
-                        active_output.setdefault(key, deque(maxlen=5)).append(line)
+                        active_output.setdefault(key, deque(maxlen=1)).append(line)
             try:
                 code, output = run_command(command, progress)
             except Exception as exc:
@@ -230,7 +230,7 @@ def main():
                 for key in t1s_keys:
                     active[key] = (label, status)
                     if line:
-                        active_output.setdefault(key, deque(maxlen=5)).append(line)
+                        active_output.setdefault(key, deque(maxlen=1)).append(line)
         code, output = run_command(command, progress)
         with lock:
             for key in t1s_keys:
