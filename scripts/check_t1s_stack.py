@@ -25,7 +25,8 @@ def exports(path):
     result = {}
     for line in path.read_text().splitlines():
         cols = line.split()
-        if len(cols) >= 4 and cols[1].startswith("oa_tc6_") and cols[2].endswith("/oa_tc6"):
+        if (len(cols) >= 4 and cols[1].startswith("oa_tc6_")
+                and Path(cols[2]).name.removesuffix(".ko").removesuffix(".o") == "oa_tc6"):
             result[cols[1]] = cols[0].lower()
     return result
 
