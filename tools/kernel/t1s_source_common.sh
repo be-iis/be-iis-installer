@@ -313,7 +313,9 @@ t1s_prepare_source() {
     # their driver files from current upstream.
     [[ -n "$tree" && -d "$tree" ]] || { t1s_warn "No valid source directory for $target"; return 1; }
     if ! t1s_has_target "$tree" "$target"; then
-        local raw="https://raw.githubusercontent.com/torvalds/linux/master" path
+        # Missing MAC-PHY drivers are sourced from the requested Linux 7.2
+        # baseline. Never fetch moving 'master' into a pinned OA-TC6 stack.
+        local raw="https://raw.githubusercontent.com/torvalds/linux/v7.2" path
         while IFS= read -r path; do
             [[ -n "$path" ]] || continue
             [[ -f "$tree/$path" ]] && continue
