@@ -42,6 +42,36 @@ for f in adin1140.c adin1140-phy.c; do cp "$A/$f" "$OUT/$f"; done
 cp "$SRC/drivers/net/ethernet/microchip/lan865x/lan865x.c" "$OUT/lan865x.c"
 cp "$SRC/drivers/net/phy/microchip_t1s.c" "$OUT/microchip_t1s.c"
 
+# Linux v7.2's LAN865x source predates the OA-TC6 init callback argument
+# used by the unified S2500 provider. Adapt only that old source form.
+python3 - "$OUT/lan865x.c" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+src = path.read_text()
+old_call = "oa_tc6_init(spi, netdev);"
+if old_call in src:
+    init_work = "\tINIT_WORK(&priv->multicast_work, lan865x_multicast_work_handler);"
+    if init_work not in src:
+        raise SystemExit("Missing LAN865x probe initialization marker")
+    src = src.replace(
+        init_work,
+        init_work + "\n\n\tnetdev->netdev_ops = &lan865x_netdev_ops;",
+        1,
+    )
+    src = src.replace(old_call, "oa_tc6_init(spi, netdev, NULL);", 1)
+    assignment = "\tnetdev->netdev_ops = &lan865x_netdev_ops;\n"
+    first = src.find(assignment)
+    duplicate = src.find(assignment, first + len(assignment))
+    if duplicate >= 0:
+        src = src[:duplicate] + src[duplicate + len(assignment):]
+    print("Adapted legacy LAN865x source to the unified OA-TC6 init API")
+else:
+    print("LAN865x source already uses the unified OA-TC6 init API")
+path.write_text(src)
+PY
+
 # Linux 6.12 lacks the newer OA TC14 cable diagnostic helpers and
 # generic Clause-45 PHY callbacks used by the upstream Microchip PHY.
 PHY_H="$KDIR/include/linux/phy.h"
