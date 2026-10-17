@@ -298,6 +298,7 @@ def main():
             time.sleep(1.0)
         for future in futures:
             future.result()
+    compatibility_report_error = None
     if t1s_keys and all(
         task["status"] == "ok"
         for key in [TC6_STACK, *t1s_keys]
@@ -310,11 +311,7 @@ def main():
             text=True, capture_output=True, check=False,
         )
         if report_proc.returncode:
-            states[TC6_STACK].append({
-                "step": "Compatibility report", "command": report_proc.args,
-                "status": "failed", "returncode": report_proc.returncode,
-                "output": report_proc.stdout + report_proc.stderr,
-            })
+            compatibility_report_error = report_proc.stdout + report_proc.stderr
     draw(states, active, active_output, selected, frame, plans, started, final=True)
     compatibility_report = ROOT / "build/t1s-unified/compatibility-report.txt"
     report = {"timestamp": dt.datetime.now(dt.timezone.utc).isoformat(),
@@ -324,12 +321,17 @@ def main():
             "path": str(compatibility_report),
             "content": compatibility_report.read_text(encoding="utf-8"),
         }
+    if compatibility_report_error:
+        report["t1s_compatibility_report_error"] = compatibility_report_error
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     failed = sum(x["status"] == "failed" and not x.get("recovered") for group in states.values() for x in group)
-    print(f"Report: {report_path} | Failed steps: {failed}")
+    total_failed = failed + bool(compatibility_report_error)
+    print(f"Report: {report_path} | Failed steps: {total_failed}")
+    if compatibility_report_error:
+        print("Compatibility report failed:\n" + compatibility_report_error, file=sys.stderr)
     if "t1s_compatibility_report" in report:
         print("\n" + report["t1s_compatibility_report"]["content"].rstrip())
-    return 1 if failed else 0
+    return 1 if total_failed else 0
 
 if __name__ == "__main__":
     sys.exit(main())
