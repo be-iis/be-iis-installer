@@ -74,9 +74,13 @@ PY
 
 # Linux 6.12 lacks the newer OA TC14 cable diagnostic helpers and
 # generic Clause-45 PHY callbacks used by the upstream Microchip PHY.
+HEADER_BASE="/usr/src/linux-headers-${KVER%%-rpi-*}-common-rpi/include/linux"
 PHY_H="$KDIR/include/linux/phy.h"
-[[ -f "$PHY_H" ]] || PHY_H="/usr/src/linux-headers-${KVER%%-rpi-*}-common-rpi/include/linux/phy.h"
+NETDEV_H="$KDIR/include/linux/netdevice.h"
+[[ -f "$PHY_H" ]] || PHY_H="$HEADER_BASE/phy.h"
+[[ -f "$NETDEV_H" ]] || NETDEV_H="$HEADER_BASE/netdevice.h"
 [[ -f "$PHY_H" ]] || t1s_die "Could not locate target kernel phy.h"
+[[ -f "$NETDEV_H" ]] || t1s_die "Could not locate target kernel netdevice.h"
 
 if ! grep -q 'genphy_c45_oatc14_get_sqi' "$PHY_H"; then
   t1s_warn "Target kernel lacks OATC14 diagnostics; disabling optional Microchip PHY callbacks."
@@ -144,4 +148,67 @@ EOF
 make -C "$KDIR" M="$OUT" modules
 
 python3 "$ROOT/scripts/check_t1s_stack.py" "$OUT"
+
+REPORT="$OUT/compatibility-report.txt"
+{
+    printf 'BE-IIS unified T1S compatibility report\n'
+    printf 'Kernel: %s\n\n' "$KVER"
+    printf '[INFO] OA-TC6 provider\n'
+    printf '  One local OA-TC6 provider is used by LAN865x, ADIN1140 and S2500.\n'
+    printf '  This avoids mixing incompatible OA-TC6 module ABIs.\n\n'
+
+    printf '[COMPAT] LAN865x source API\n'
+    printf '  Legacy LAN865x source is adapted to the current oa_tc6_init() signature.\n'
+    printf '  Impact: no feature restriction; the added callback argument is NULL.\n\n'
+
+    if ! grep -q 'ndo_set_rx_mode_async' "$NETDEV_H"; then
+        printf '[COMPAT] ADIN1140 and S2500 receive filter updates\n'
+        printf '  Target kernel lacks ndo_set_rx_mode_async; multicast/promiscuous filter updates run in a workqueue.\n'
+        printf '  Impact: no filter feature is removed, but updates are asynchronous and may take a short moment.\n\n'
+    fi
+
+    if ! grep -q 'netns_immutable' "$NETDEV_H"; then
+        printf '[COMPAT] ADIN1140 network-namespace declaration\n'
+        printf '  Target kernel lacks netns_immutable; that metadata assignment is omitted.\n'
+        printf '  Impact: no effect for normal Raspberry Pi networking.\n\n'
+    fi
+
+    if ! grep -A3 'set_loopback' "$PHY_H" | grep -q 'int speed'; then
+        printf '[COMPAT] ADIN1140 PHY loopback callback\n'
+        printf '  Target kernel uses the legacy loopback callback without a speed argument.\n'
+        printf '  Impact: no expected effect for fixed-rate 10BASE-T1S; loopback is retained.\n\n'
+    fi
+
+    if ! grep -q 'genphy_read_mmd_c45' "$PHY_H"; then
+        printf '[COMPAT] Direct Clause-45 MDIO access\n'
+        printf '  ADIN1140, NCN26000 and Microchip PHY drivers use local mdiobus_c45 read/write wrappers.\n'
+        printf '  Impact: equivalent register access; no known normal-operation restriction.\n\n'
+    fi
+
+    if ! grep -q 'phy_id_compare_model' "$PHY_H"; then
+        printf '[COMPAT] NCN26000 PHY identification\n'
+        printf '  Target kernel uses a legacy model-mask comparison.\n'
+        printf '  Impact: no expected restriction for the NCN26000.\n\n'
+    fi
+
+    if ! grep -q 'genphy_loopback_fixed_speed' "$PHY_H"; then
+        printf '[COMPAT] NCN26000 PHY loopback callback\n'
+        printf '  Target kernel uses generic genphy_loopback instead of the fixed-speed helper.\n'
+        printf '  Impact: normal networking is unaffected; specialised loopback validation should be checked on target hardware.\n\n'
+    fi
+
+    if ! grep -q 'genphy_c45_oatc14_get_sqi' "$PHY_H"; then
+        printf '[RESTRICTED] OATC14 cable diagnostics and Signal Quality Indicator\n'
+        printf '  Target kernel lacks the generic OATC14 helpers.\n'
+        printf '  Affected: Microchip LAN865x PHY and onsemi NCN26000 PHY.\n'
+        printf '  Unavailable: ethtool cable-test callbacks and SQI/SQI-max reporting.\n'
+        printf '  Normal 10BASE-T1S network operation is unaffected.\n'
+    else
+        printf '[OK] OATC14 diagnostics and SQI callbacks are available from the target kernel.\n'
+    fi
+} > "$REPORT"
+
+printf '\n'
+cat "$REPORT"
+printf '\nCompatibility report written to: %s\n' "$REPORT"
 printf 'Unified T1S stack built and checked (NOT installed): %s\n' "$OUT"
