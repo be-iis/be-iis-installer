@@ -6,7 +6,7 @@ DTBOS     := $(addprefix $(BUILD_ROOT)/,$(addsuffix .dtbo,$(OVERLAYS)))
 
 KVER := $(shell uname -r)
 KERNEL_HEADERS := /lib/modules/$(KVER)/build
-COMMON_HEADERS := /usr/src/linux-headers-$(shell uname -r | sed 's/-rpi-[0-9]*/-common-rpi/')/include
+COMMON_HEADERS := /usr/src/linux-headers-$(shell uname -r | sed 's/-rpi-.*//')-common-rpi/include
 
 DTC := dtc
 CPP := cpp
