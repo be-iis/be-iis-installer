@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="${1:-$(cd -- "$SCRIPT_DIR/../.." && pwd)}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${1:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 PRODUCTS_DIR="$REPO_ROOT/products"
 
 log() {
@@ -31,7 +31,6 @@ else
 fi
 
 log "Using overlay destination: $OVERLAY_DST"
-[[ "$EUID" -eq 0 ]] || die "Run with sudo"
 
 [[ -d "$PRODUCTS_DIR" ]] || die "Products directory not found: $PRODUCTS_DIR"
 
@@ -61,11 +60,10 @@ for product_dir in "$PRODUCTS_DIR"/BE-IIS*; do
 
         found_dtbo=1
 
-        filename="$(basename "$dtbo")"
-        log "Copying $filename"
-        install -D -m 0644 "$dtbo" "$OVERLAY_DST/$filename"
-        count=$((count + 1))
+        log "Copying $(basename "$dtbo")"
+        sudo install -D -m 0644 "$dtbo" "$OVERLAY_DST/$(basename "$dtbo")"
 
+        count=$((count + 1))
     done
 
     if [[ "$found_dtbo" -eq 0 ]]; then
