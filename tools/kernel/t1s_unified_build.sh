@@ -10,12 +10,11 @@ OUT="$ROOT/build/t1s-unified"
 [[ -d "$KDIR" ]] || t1s_die "Missing headers for $KVER"
 for tool in make modinfo python3; do t1s_require "$tool"; done
 
-# Reuse per-driver compatibility transforms, but compile all final modules
-# together against ONE provider and ONE local header, not their separate ABI.
-# The onsemi/ADI scripts may skip when their drivers are natively installed;
-# in that case this builder deliberately requires explicit source preparation.
-bash "$ROOT/tools/kernel/s2500_mod_build.sh"
-bash "$ROOT/tools/kernel/adin1140_mod_build.sh"
+# Reuse per-driver compatibility transforms, but only prepare their sources.
+# The actual OA-TC6 provider is built below as an independent module, before
+# the MAC-PHY modules are compiled in parallel against its Module.symvers.
+BEIIS_FORCE_BUILD=1 BEIIS_PREPARE_ONLY=1 bash "$ROOT/tools/kernel/s2500_mod_build.sh"
+BEIIS_FORCE_BUILD=1 BEIIS_PREPARE_ONLY=1 bash "$ROOT/tools/kernel/adin1140_mod_build.sh"
 
 S="$ROOT/build/s2500"
 A="$ROOT/build/adin1140"
@@ -31,20 +30,20 @@ SRC="$(t1s_prepare_source "$ROOT" lan865x "$KVER")"
   t1s_die "Missing Microchip PHY source"
 
 rm -rf "$OUT"
-mkdir -p "$OUT/include/linux"
-cp "$S/include/linux/oa_tc6.h" "$OUT/include/linux/oa_tc6.h"
+mkdir -p "$OUT/source/include/linux"
+cp "$S/include/linux/oa_tc6.h" "$OUT/source/include/linux/oa_tc6.h"
 for f in oa_tc6_core.c oa_tc6_ptp.c oa_tc6_tstamp.c oa_tc6_std_def.h \
          oa_tc6_local.h s2500_main.c s2500_ethtool.c s2500_ptp.c \
          s2500_hw_def.h ncn26000.c mdio-open-alliance.h; do
-  cp "$S/$f" "$OUT/$f"
+  cp "$S/$f" "$OUT/source/$f"
 done
-for f in adin1140.c adin1140-phy.c; do cp "$A/$f" "$OUT/$f"; done
-cp "$SRC/drivers/net/ethernet/microchip/lan865x/lan865x.c" "$OUT/lan865x.c"
-cp "$SRC/drivers/net/phy/microchip_t1s.c" "$OUT/microchip_t1s.c"
+for f in adin1140.c adin1140-phy.c; do cp "$A/$f" "$OUT/source/$f"; done
+cp "$SRC/drivers/net/ethernet/microchip/lan865x/lan865x.c" "$OUT/source/lan865x.c"
+cp "$SRC/drivers/net/phy/microchip_t1s.c" "$OUT/source/microchip_t1s.c"
 
 # Linux v7.2's LAN865x source predates the OA-TC6 init callback argument
 # used by the unified S2500 provider. Adapt only that old source form.
-python3 - "$OUT/lan865x.c" <<'PY'
+python3 - "$OUT/source/lan865x.c" <<'PY'
 from pathlib import Path
 import sys
 
@@ -84,12 +83,12 @@ NETDEV_H="$KDIR/include/linux/netdevice.h"
 
 if ! grep -q 'genphy_c45_oatc14_get_sqi' "$PHY_H"; then
   t1s_warn "Target kernel lacks OATC14 diagnostics; disabling optional Microchip PHY callbacks."
-  sed -i -E '/^[[:space:]]*\.(cable_test_start|cable_test_get_status|get_sqi|get_sqi_max)[[:space:]]*=[[:space:]]*genphy_c45_oatc14_/d' "$OUT/microchip_t1s.c"
+  sed -i -E '/^[[:space:]]*\.(cable_test_start|cable_test_get_status|get_sqi|get_sqi_max)[[:space:]]*=[[:space:]]*genphy_c45_oatc14_/d' "$OUT/source/microchip_t1s.c"
 fi
 
 if ! grep -q 'genphy_read_mmd_c45' "$PHY_H"; then
   t1s_warn "Target kernel lacks generic direct-C45 PHY helpers; applying Microchip compatibility wrappers."
-  python3 - "$OUT/microchip_t1s.c" <<'PY'
+  python3 - "$OUT/source/microchip_t1s.c" <<'PY'
 from pathlib import Path
 
 path = Path(__import__("sys").argv[1])
@@ -134,18 +133,74 @@ fi
 
 # Force all drivers to the exact local header used by the single provider.
 # Upstream code may use either include spelling.
-for f in "$OUT"/*.c "$OUT"/*.h; do
+for f in "$OUT/source"/*.c "$OUT/source"/*.h; do
   sed -i 's@#include <linux/oa_tc6.h>@#include "oa_tc6_local.h"@g' "$f"
 done
 
-cat > "$OUT/Makefile" <<'EOF'
-obj-m := oa_tc6.o lan865x.o microchip_t1s.o adin1140.o adin1140-phy.o s2500.o ncn26000.o
+CORE="$OUT/oa-tc6"
+ADIN="$OUT/adin1140"
+ONSEMI="$OUT/onsemi"
+MICROCHIP="$OUT/microchip"
+mkdir -p "$CORE/include/linux" "$ADIN" "$ONSEMI" "$MICROCHIP"
+
+cp "$OUT/source/include/linux/oa_tc6.h" "$CORE/include/linux/"
+for f in oa_tc6_core.c oa_tc6_ptp.c oa_tc6_tstamp.c oa_tc6_std_def.h oa_tc6_local.h; do
+  cp "$OUT/source/$f" "$CORE/$f"
+done
+cat > "$CORE/Makefile" <<'EOF'
+obj-m := oa_tc6.o
 oa_tc6-y := oa_tc6_core.o oa_tc6_ptp.o oa_tc6_tstamp.o
-s2500-y := s2500_main.o s2500_ethtool.o s2500_ptp.o
 ccflags-y += -I$(M)/include
 EOF
 
-make -C "$KDIR" M="$OUT" modules
+printf 'Building independent OA-TC6 provider first\n'
+make -C "$KDIR" M="$CORE" modules
+[[ -s "$CORE/oa_tc6.ko" && -s "$CORE/Module.symvers" ]] ||
+  t1s_die "Independent OA-TC6 build did not produce module symbols"
+
+for f in adin1140.c adin1140-phy.c oa_tc6_local.h; do cp "$OUT/source/$f" "$ADIN/$f"; done
+cat > "$ADIN/Makefile" <<'EOF'
+obj-m := adin1140.o adin1140-phy.o
+EOF
+
+for f in s2500_main.c s2500_ethtool.c s2500_ptp.c s2500_hw_def.h ncn26000.c \
+         mdio-open-alliance.h oa_tc6_local.h oa_tc6_std_def.h; do cp "$OUT/source/$f" "$ONSEMI/$f"; done
+cat > "$ONSEMI/Makefile" <<'EOF'
+obj-m := s2500.o ncn26000.o
+s2500-y := s2500_main.o s2500_ethtool.o s2500_ptp.o
+EOF
+
+for f in lan865x.c microchip_t1s.c oa_tc6_local.h; do cp "$OUT/source/$f" "$MICROCHIP/$f"; done
+cat > "$MICROCHIP/Makefile" <<'EOF'
+obj-m := lan865x.o microchip_t1s.o
+EOF
+
+build_macphy() {
+  local name="$1" directory="$2"
+  printf 'Building %s MAC-PHY modules against OA-TC6 Module.symvers\n' "$name"
+  make -C "$KDIR" M="$directory" KBUILD_EXTRA_SYMBOLS="$CORE/Module.symvers" modules
+}
+
+build_macphy ADIN1140 "$ADIN" & adin_pid=$!
+build_macphy onsemi "$ONSEMI" & onsemi_pid=$!
+build_macphy Microchip "$MICROCHIP" & microchip_pid=$!
+macphy_status=0
+wait "$adin_pid" || macphy_status=1
+wait "$onsemi_pid" || macphy_status=1
+wait "$microchip_pid" || macphy_status=1
+[[ "$macphy_status" == 0 ]] || t1s_die "One or more MAC-PHY builds failed"
+
+for module in oa_tc6 lan865x microchip_t1s adin1140 adin1140-phy s2500 ncn26000; do
+  case "$module" in
+    oa_tc6) source="$CORE/$module.ko" ;;
+    lan865x|microchip_t1s) source="$MICROCHIP/$module.ko" ;;
+    adin1140|adin1140-phy) source="$ADIN/$module.ko" ;;
+    s2500|ncn26000) source="$ONSEMI/$module.ko" ;;
+  esac
+  cp "$source" "$OUT/$module.ko"
+done
+
+printf 'OA-TC6 provider and three MAC-PHY build groups completed\n'
 
 python3 "$ROOT/scripts/check_t1s_stack.py" "$OUT"
 
@@ -171,8 +226,9 @@ source_record() {
     printf '  Target ABI: Raspberry Pi kernel headers %s\n' "$KVER"
     printf '\n'
     printf '[INFO] OA-TC6 provider\n'
-    printf '  One local OA-TC6 provider is used by LAN865x, ADIN1140 and S2500.\n'
-    printf '  This avoids mixing incompatible OA-TC6 module ABIs.\n\n'
+    printf '  oa_tc6.ko is built first as an independent module from the S2500 v8 source series.\n'
+    printf '  ADIN1140, onsemi/NCN26000 and Microchip/LAN865x then build in parallel against its Module.symvers.\n'
+    printf '  This prevents mixing incompatible OA-TC6 module ABIs.\n\n'
 
     printf '[COMPAT] LAN865x source API\n'
     printf '  Source expectation: legacy LAN865x calls oa_tc6_init(spi, netdev).\n'
