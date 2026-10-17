@@ -61,10 +61,18 @@ from pathlib import Path
 path = Path(__import__("sys").argv[1])
 src = path.read_text()
 marker = "#include <linux/phy.h>"
-if marker not in src:
-    raise SystemExit("Missing linux/phy.h include in Microchip source")
-wrappers = """
-/* Linux 6.12 compatibility for direct Clause-45 accesses. */
+callbacks = {
+    "genphy_read_mmd_c45": "beiis_microchip_read_mmd_c45",
+    "genphy_write_mmd_c45": "beiis_microchip_write_mmd_c45",
+}
+# Older source revisions may not reference either helper. Do not add
+# unnecessary wrappers, and do not reject otherwise compatible sources.
+needed = [original for original in callbacks if original in src]
+if needed:
+    if marker not in src:
+        raise SystemExit("Missing linux/phy.h include in Microchip source")
+    wrappers = """
+/* Fallback for kernels lacking the direct Clause-45 PHY helpers. */
 static int beiis_microchip_read_mmd_c45(struct phy_device *phydev,
                                         int devnum, u16 regnum)
 {
@@ -79,14 +87,13 @@ static int beiis_microchip_write_mmd_c45(struct phy_device *phydev,
                              devnum, regnum, val);
 }
 """
-src = src.replace(marker, marker + "\n" + wrappers, 1)
-for original, replacement in (
-    ("= genphy_read_mmd_c45,", "= beiis_microchip_read_mmd_c45,"),
-    ("= genphy_write_mmd_c45,", "= beiis_microchip_write_mmd_c45,"),
-):
-    if original not in src:
-        raise SystemExit(f"Could not find Microchip callback: {original}")
-    src = src.replace(original, replacement)
+    src = src.replace(marker, marker + "\n" + wrappers, 1)
+    import re
+    for original in needed:
+        src, count = re.subn(r"\b" + original + r"\b", callbacks[original], src)
+        print(f"Replaced {count} references to {original}")
+else:
+    print("Microchip driver does not use direct-C45 helpers; no wrappers needed")
 path.write_text(src)
 PY
 fi
