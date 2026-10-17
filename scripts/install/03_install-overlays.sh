@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="${1:-$HOME/be-iis-installer}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${1:-$(cd -- "$SCRIPT_DIR/../.." && pwd)}"
 PRODUCTS_DIR="$REPO_ROOT/products"
 
 log() {
@@ -30,6 +31,7 @@ else
 fi
 
 log "Using overlay destination: $OVERLAY_DST"
+[[ "$EUID" -eq 0 ]] || die "Run with sudo"
 
 [[ -d "$PRODUCTS_DIR" ]] || die "Products directory not found: $PRODUCTS_DIR"
 
@@ -59,10 +61,19 @@ for product_dir in "$PRODUCTS_DIR"/BE-IIS*; do
 
         found_dtbo=1
 
-        log "Copying $(basename "$dtbo")"
-        sudo install -D -m 0644 "$dtbo" "$OVERLAY_DST/$(basename "$dtbo")"
-
+        filename="$(basename "$dtbo")"
+        log "Copying $filename"
+        install -D -m 0644 "$dtbo" "$OVERLAY_DST/$filename"
         count=$((count + 1))
+
+        # The HAT+ EEPROM dt_blob names omit the internal revision suffix.
+        # Publish the matching alias as well as the revisioned build artifact.
+        if [[ "$filename" == *-REVA-*.dtbo ]]; then
+            alias_name="${filename/-REVA-/-}"
+            log "Copying EEPROM alias $alias_name"
+            install -D -m 0644 "$dtbo" "$OVERLAY_DST/$alias_name"
+            count=$((count + 1))
+        fi
     done
 
     if [[ "$found_dtbo" -eq 0 ]]; then
