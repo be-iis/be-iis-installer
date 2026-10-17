@@ -10,6 +10,7 @@ import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from collections import deque
 
 ROOT = Path(__file__).resolve().parents[1]
 KERNEL = os.uname().release
@@ -76,7 +77,7 @@ TASKS = discover_tasks()
 
 SPINNER = "/-\\|"
 
-def draw(states, active, selected, frame, plans, started, final=False):
+def draw(states, active, active_output, selected, frame, plans, started, final=False):
     """Show completed-step percentage; never guess compiler substep progress."""
     interactive = sys.stdout.isatty() and not os.getenv("NO_COLOR")
     total = sum(len(plans[k]) for k in selected) + sum(k in T1S_PRODUCTS for k in selected)
@@ -103,6 +104,14 @@ def draw(states, active, selected, frame, plans, started, final=False):
         else:
             symbol, status = "WAIT", "Queued"
         lines.append(f"[{symbol}] {key}: {done}/{planned} | {status}")
+        # In an interactive terminal show the latest command output directly
+        # below the corresponding RUN item.  It vanishes on the next redraw
+        # as soon as that item leaves active, keeping completed views compact.
+        if key in active:
+            recent = active_output.get(key, ())
+            if recent:
+                lines.append("  terminal:")
+                lines.extend(f"    {line}" for line in recent)
     lines.append("")
     if not final:
         lines.append("Progress counts completed tasks, not internal compiler work.")
@@ -128,13 +137,15 @@ def run_command(command, progress):
             output.append(line)
             low = line.lower()
             if any(word in low for word in ("downloading", "fetching", "grabbing thread", "source", "patch")):
-                progress("Downloading / preparing kernel sources")
+                progress("Downloading / preparing kernel sources", line.rstrip())
             elif any(word in low for word in ("cc [m]", "ld [m]", "building", "  cc ", "  ld ")):
-                progress("Compiling kernel modules")
+                progress("Compiling kernel modules", line.rstrip())
             elif "entering directory" in low:
-                progress("Running make")
+                progress("Running make", line.rstrip())
             elif "nothing to be done" in low:
-                progress("Up to date")
+                progress("Up to date", line.rstrip())
+            else:
+                progress("Running", line.rstrip())
     except Exception as exc:
         output.append(f"Installer stream error: {exc}\n")
     return proc.wait(), "".join(output)
@@ -180,6 +191,7 @@ def main():
     t1s_missing = bool(t1s_keys and args.rebuild)
     states = {key: [] for key in selected}
     active = {}
+    active_output = {}
     lock = threading.Lock()
     report_path = ROOT / args.report
     report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -188,9 +200,11 @@ def main():
         for label, command in plans[key]:
             with lock:
                 active[key] = (label, "Starting")
-            def progress(status):
+            def progress(status, line=""):
                 with lock:
                     active[key] = (label, status)
+                    if line:
+                        active_output.setdefault(key, deque(maxlen=5)).append(line)
             try:
                 code, output = run_command(command, progress)
             except Exception as exc:
@@ -200,6 +214,7 @@ def main():
                                     "status": "ok" if code == 0 else "failed",
                                     "returncode": code, "output": output})
                 active.pop(key, None)
+                active_output.pop(key, None)
 
     def shared_t1s_worker():
         if not t1s_keys:
@@ -210,10 +225,12 @@ def main():
         with lock:
             for key in t1s_keys:
                 active[key] = (label, "Starting")
-        def progress(status):
+        def progress(status, line=""):
             with lock:
                 for key in t1s_keys:
                     active[key] = (label, status)
+                    if line:
+                        active_output.setdefault(key, deque(maxlen=5)).append(line)
         code, output = run_command(command, progress)
         with lock:
             for key in t1s_keys:
@@ -222,10 +239,11 @@ def main():
                                     "returncode": code, "output": output,
                                     "compatibility": True})
                 active.pop(key, None)
+                active_output.pop(key, None)
 
     frame = 0
     started = time.monotonic()
-    draw(states, active, selected, frame, plans, started)
+    draw(states, active, active_output, selected, frame, plans, started)
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
         futures = [pool.submit(worker, key) for key in selected]
         if t1s_keys:
@@ -233,17 +251,25 @@ def main():
         while not all(f.done() for f in futures):
             with lock:
                 if frame % 5 == 0 or sys.stdout.isatty():
-                    draw(states, active, selected, frame, plans, started)
+                    draw(states, active, active_output, selected, frame, plans, started)
             frame += 1
             time.sleep(1.0)
         for future in futures:
             future.result()
-    draw(states, active, selected, frame, plans, started, final=True)
+    draw(states, active, active_output, selected, frame, plans, started, final=True)
+    compatibility_report = ROOT / "build/t1s-unified/compatibility-report.txt"
     report = {"timestamp": dt.datetime.now(dt.timezone.utc).isoformat(),
               "kernel": KERNEL, "tasks": states}
+    if compatibility_report.is_file():
+        report["t1s_compatibility_report"] = {
+            "path": str(compatibility_report),
+            "content": compatibility_report.read_text(encoding="utf-8"),
+        }
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     failed = sum(x["status"] == "failed" and not x.get("recovered") for group in states.values() for x in group)
     print(f"Report: {report_path} | Failed steps: {failed}")
+    if "t1s_compatibility_report" in report:
+        print("\n" + report["t1s_compatibility_report"]["content"].rstrip())
     return 1 if failed else 0
 
 if __name__ == "__main__":
