@@ -88,7 +88,7 @@ def draw(states, active, active_output, selected, frame, plans, started, final=F
             return f"[{symbol}]"
         colour = {
             "RUN": "34", "WAIT": "34",       # blue: pending or active
-            "CHECK": "32",                      # green: completed successfully
+            "PASS": "32",                       # green: completed successfully
             "FAIL": "31",                       # red: failed
             "-": "33",                          # yellow: no build target
         }.get(symbol)
@@ -115,7 +115,7 @@ def draw(states, active, active_output, selected, frame, plans, started, final=F
         product_active = key in active
         product_done = len(finished) >= len(step_labels)
         product_symbol = "FAIL" if product_failed else ("RUN" if product_active else
-                         ("CHECK" if product_done else "WAIT"))
+                         ("PASS" if product_done else "WAIT"))
         lines.append(f"{tag(product_symbol)} {key}")
 
         # A product that has not started yet stays compact.  Its individual
@@ -127,7 +127,7 @@ def draw(states, active, active_output, selected, frame, plans, started, final=F
         for label in step_labels:
             task = finished.get(label)
             if task:
-                step_symbol = "CHECK" if task["status"] == "ok" else "FAIL"
+                step_symbol = "PASS" if task["status"] == "ok" else "FAIL"
             elif label == active_label:
                 step_symbol = "RUN"
             else:
@@ -298,6 +298,23 @@ def main():
             time.sleep(1.0)
         for future in futures:
             future.result()
+    if t1s_keys and all(
+        task["status"] == "ok"
+        for key in [TC6_STACK, *t1s_keys]
+        for task in states[key]
+    ):
+        # The core and MAC-PHY modules are now separate processes.  Produce
+        # their common compatibility report only after all groups succeeded.
+        report_proc = subprocess.run(
+            ["bash", "tools/kernel/t1s_compatibility_report.sh"], cwd=ROOT,
+            text=True, capture_output=True, check=False,
+        )
+        if report_proc.returncode:
+            states[TC6_STACK].append({
+                "step": "Compatibility report", "command": report_proc.args,
+                "status": "failed", "returncode": report_proc.returncode,
+                "output": report_proc.stdout + report_proc.stderr,
+            })
     draw(states, active, active_output, selected, frame, plans, started, final=True)
     compatibility_report = ROOT / "build/t1s-unified/compatibility-report.txt"
     report = {"timestamp": dt.datetime.now(dt.timezone.utc).isoformat(),
