@@ -267,5 +267,10 @@ oa_tc6-y += $(if $(wildcard $(M)/oa_tc6_tstamp.c),oa_tc6_tstamp.o)
 ccflags-y += -I$(M)/include
 EOF
 
+if [[ "${BEIIS_PREPARE_ONLY:-0}" == "1" ]]; then
+    t1s_note "Prepared ADIN1140 sources in $OUT"
+    exit 0
+fi
+
 make -C "$KDIR" M="$OUT" modules || t1s_die "Build failed; update the Raspberry Pi kernel rather than mixing an older OA-TC6 API."
 t1s_note "Built modules in $OUT"
