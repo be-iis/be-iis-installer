@@ -80,6 +80,21 @@ SPINNER = "/-\\|"
 def draw(states, active, active_output, selected, frame, plans, started, final=False):
     """Show completed-step percentage; never guess compiler substep progress."""
     interactive = sys.stdout.isatty() and not os.getenv("NO_COLOR")
+
+    def tag(symbol):
+        """Colour only state markers; preserve clean output in logs/pipes."""
+        if not interactive:
+            return f"[{symbol}]"
+        colour = {
+            "RUN": "34", "WAIT": "34",       # blue: pending or active
+            "CHECK": "32",                      # green: completed successfully
+            "FAIL": "31",                       # red: failed
+            "-": "33",                          # yellow: no build target
+        }.get(symbol)
+        return f"\033[{colour}m[{symbol}]\033[0m" if colour else f"[{symbol}]"
+
+    def terminal_line(line):
+        return f"\033[32m    {line}\033[0m" if interactive else f"    {line}"
     total = sum(len(plans[k]) for k in selected) + sum(k in T1S_PRODUCTS for k in selected)
     completed = sum(len(states[k]) for k in selected)
     percent = round(100 * completed / total) if total else 100
@@ -94,7 +109,7 @@ def draw(states, active, active_output, selected, frame, plans, started, final=F
             step_labels.append("Shared T1S compatibility build")
         finished = {task["step"]: task for task in states[key]}
         if not step_labels:
-            lines.append(f"[-] {key}: No build target")
+            lines.append(f"{tag('-')} {key}: No build target")
             continue
 
         product_failed = any(task["status"] == "failed" for task in finished.values())
@@ -102,7 +117,7 @@ def draw(states, active, active_output, selected, frame, plans, started, final=F
         product_done = len(finished) >= len(step_labels)
         product_symbol = "FAIL" if product_failed else ("RUN" if product_active else
                          ("CHECK" if product_done else "WAIT"))
-        lines.append(f"[{product_symbol}] {key}")
+        lines.append(f"{tag(product_symbol)} {key}")
 
         # A product that has not started yet stays compact.  Its individual
         # steps are revealed only once work on that product actually begins.
@@ -118,13 +133,13 @@ def draw(states, active, active_output, selected, frame, plans, started, final=F
                 step_symbol = "RUN"
             else:
                 step_symbol = "WAIT"
-            lines.append(f"  [{step_symbol}] {label}")
+            lines.append(f"  {tag(step_symbol)} {label}")
             # Show only the current line of the currently running command,
             # directly below that RUN step.  It is removed on completion.
             if step_symbol == "RUN":
                 current = active_output.get(key, ())
                 if current:
-                    lines.append(f"    {current[-1]}")
+                    lines.append(terminal_line(current[-1]))
     lines.append("")
     if not final:
         lines.append("Progress counts completed tasks, not internal compiler work.")
