@@ -88,6 +88,11 @@ make -C "$KDIR" M="$BUILD_DIR" modules
 [ -f "$BUILD_DIR/sc16is7xx.ko" ] || die "sc16is7xx.ko was not created"
 [ -f "$BUILD_DIR/sc16is7xx_spi.ko" ] || die "sc16is7xx_spi.ko was not created"
 
+if [[ "${BEIIS_BUILD_ONLY:-0}" == "1" ]]; then
+    echo "Build-only mode: skipping module installation"
+    exit 0
+fi
+
 STEP="STEP6"
 say "$STEP" "Installing modules"
 

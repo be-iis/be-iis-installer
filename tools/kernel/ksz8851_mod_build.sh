@@ -87,6 +87,11 @@ make -C "$KDIR" M="$BUILD_DIR" modules
 
 [ -f "$BUILD_DIR/ks8851.ko" ] || die "ks8851.ko was not created"
 
+if [[ "${BEIIS_BUILD_ONLY:-0}" == "1" ]]; then
+    echo "Build-only mode: skipping module installation"
+    exit 0
+fi
+
 STEP="STEP6"
 say "$STEP" "Installing module"
 

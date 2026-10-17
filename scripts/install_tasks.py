@@ -20,6 +20,30 @@ DRIVER_BUILDS = {
     "BE-IIS-HPP-T1L-REVB": ("adin1110", ["adin1110"]),
 }
 T1S_PRODUCTS = {"BE-IIS-HPP-T1S-ADI-REVA": "adi", "BE-IIS-HPP-T1S-ONSEMI-REVA": "onsemi", "BE-IIS-HPP-T1S-REVB": "microchip"}
+# A single independent worker owns each driver build directory.
+# Product tasks only build when outputs are missing, unless --rebuild is used.
+PRODUCT_MODULES = {
+    "BE-IIS-HPP-T1L-REVB": ("adin1110", "tools/kernel/adin1110_mod_build.sh", ("adin1110.ko",)),
+    "BE-IIS-HPP-UART-REVB": ("sc16is752", "tools/kernel/sc16is7xx_mod_build.sh", ("sc16is7xx.ko", "sc16is7xx_spi.ko")),
+    "BE-IIS-HPP-CAN-FD-SIC-REVB": ("mcp251xfd", "tools/kernel/mcp251xfd_mod_build.sh", ("mcp251xfd.ko",)),
+    "BE-IIS-HPP-LAN-REVB": ("ksz8851", "tools/kernel/ksz8851_mod_build.sh", ("ks8851.ko",)),
+    "BE-IIS-HPP-SPE-NOISE": ("machxo2-fpga-manager", "tools/kernel/machxo2_fpga_mgr_build.sh",
+                               ("fpga-mgr.ko", "fpga-bridge.ko", "fpga-region.ko", "of-fpga-region.ko", "machxo2-spi.ko")),
+}
+T1S_OUTPUTS = ("oa_tc6.ko", "lan865x.ko", "microchip_t1s.ko",
+               "adin1140.ko", "adin1140-phy.ko", "s2500.ko", "ncn26000.ko")
+
+def have_outputs(directory, filenames):
+    return all((ROOT / "build" / directory / name).is_file() for name in filenames)
+
+def product_build_command(key, rebuild):
+    if key not in PRODUCT_MODULES:
+        return None
+    directory, script, outputs = PRODUCT_MODULES[key]
+    if not rebuild and have_outputs(directory, outputs):
+        return None
+    return ["bash", script]
+
 
 ALIASES = {
     "adi": "BE-IIS-HPP-T1S-ADI-REVA",
@@ -52,17 +76,17 @@ TASKS = discover_tasks()
 
 SPINNER = "/-\\|"
 
-def draw(states, active, selected, frame):
+def draw(states, active, selected, frame, plans):
     interactive = sys.stdout.isatty() and not os.getenv("NO_COLOR")
     if interactive:
         sys.stdout.write("\x1b[2J\x1b[H")
-    print(f"BE-IIS installation  •  {KERNEL}  •  parallel tasks")
+    print(f"BE-IIS build  •  {KERNEL}  •  parallel tasks")
     print()
     for key in selected:
         name, steps = TASKS[key]
         results = states[key]
         regular = [x for x in results if not x.get("compatibility") and not x.get("retry")]
-        total = len(steps) + (1 if key in T1S_PRODUCTS else 0)
+        total = len(plans[key]) + (1 if key in T1S_PRODUCTS else 0)
         attempted = len(regular) + sum(bool(x.get("compatibility")) for x in results)
         failed = any(x["status"] == "failed" and not x.get("recovered") for x in results)
         complete = attempted >= total
@@ -74,7 +98,7 @@ def draw(states, active, selected, frame):
             print(f"  {spin} {label}: {status}")
         for retry in (x for x in results if x.get("retry")):
             print(f"  {'✓' if retry['status'] == 'ok' else '✗'} {retry['step']} — " + ("built, not installed" if retry["status"] == "ok" else "failed"))
-        for index, (label, _) in enumerate(steps):
+        for index, (label, _) in enumerate(plans[key]):
             if index < len(results):
                 if results[index]["status"] == "failed":
                     symbol = "↻" if results[index].get("recovered") else "✗"
@@ -87,6 +111,7 @@ def run_command(command, progress):
     try:
         env = os.environ.copy()
         env["BEIIS_BUILD_ONLY"] = "1"
+        env["BEIIS_FORCE_BUILD"] = "1"
         proc = subprocess.Popen(command, cwd=ROOT, env=env, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, text=True, bufsize=1)
     except OSError as exc:
@@ -111,11 +136,15 @@ def main():
     parser.add_argument("tasks", nargs="*", help="Product directory names or legacy aliases (default: all)")
     parser.add_argument("--list", action="store_true", help="List discovered products and build targets")
     parser.add_argument("--report", default="build/install-report.json")
-    parser.add_argument("--jobs", type=int, default=3, help="Maximum parallel products (default 3)")
+    parser.add_argument("--jobs", type=int, default=3, help="Maximum parallel build workers (default 3)")
+    parser.add_argument("--rebuild", action="store_true", help="Rebuild all selected kernel modules and overlays even if already built")
     args = parser.parse_args()
     if args.list:
         for key, (name, steps) in TASKS.items():
-            print(f"{key}: " + (", ".join(x[0] for x in steps) if steps else "no build target (skipped)"))
+            extra = ["Kernel module build"] if key in PRODUCT_MODULES else []
+            extra += ["Shared T1S build/check"] if key in T1S_PRODUCTS else []
+            labels = extra + [x[0] for x in steps if not x[0].endswith("native kernel driver check")]
+            print(f"{key}: " + (", ".join(labels) if labels else "no build target (skipped)"))
         return 0
     if args.jobs < 1:
         parser.error("--jobs must be at least 1")
@@ -123,6 +152,24 @@ def main():
     for key in selected:
         if key not in TASKS:
             parser.error(f"unknown product: {key}")
+    # Prepare execution plans before starting any parallel workers.
+    plans = {}
+    for key in selected:
+        plans[key] = []
+        command = product_build_command(key, args.rebuild)
+        if command:
+            plans[key].append(("Kernel module build", command))
+        for label, command in plans[key]:
+            # Native module availability is not a build target. The module
+            # builder above is authoritative for T1L; keep overlays.
+            if label.endswith("native kernel driver check"):
+                continue
+            if args.rebuild and label == "Device-tree overlays":
+                plans[key].append(("Device-tree clean", ["make", "-C", command[-1], "clean"]))
+            plans[key].append((label, command))
+    t1s_keys = [k for k in selected if k in T1S_PRODUCTS]
+    t1s_products = [T1S_PRODUCTS[k] for k in t1s_keys]
+    t1s_missing = t1s_keys and (args.rebuild or not have_outputs("t1s-unified", T1S_OUTPUTS))
     states = {key: [] for key in selected}
     active = {}
     lock = threading.Lock()
@@ -146,29 +193,37 @@ def main():
                                     "returncode": code, "output": output})
                 active.pop(key, None)
 
-    frame = 0
-    with ThreadPoolExecutor(max_workers=min(args.jobs, len(selected))) as pool:
-        futures = [pool.submit(worker, key) for key in selected]
-        while not all(f.done() for f in futures):
-            with lock:
-                draw(states, active, selected, frame)
-            frame += 1
-            time.sleep(0.2)
-        for future in futures:
-            future.result()
-    # One shared T1S compatibility pass, never one competing build per product.
-    selected_t1s = [T1S_PRODUCTS[k] for k in selected if k in T1S_PRODUCTS]
-    if selected_t1s:
-        label = "Shared T1S native check / compatibility build"
-        command = [sys.executable, "compatibility/t1s/ensure.py", *selected_t1s]
+    def shared_t1s_worker():
+        if not t1s_keys:
+            return
+        label = "Shared T1S kernel module build" if t1s_missing else "Shared T1S native check"
+        command = (["bash", "tools/kernel/t1s_unified_build.sh"] if t1s_missing
+                   else [sys.executable, "compatibility/t1s/ensure.py", *t1s_products])
+        with lock:
+            for key in t1s_keys:
+                active[key] = (label, "Starting")
         code, output = run_command(command, lambda status: None)
-        for key in selected:
-            if key in T1S_PRODUCTS:
+        with lock:
+            for key in t1s_keys:
                 states[key].append({"step": label, "command": command,
                                     "status": "ok" if code == 0 else "failed",
                                     "returncode": code, "output": output,
                                     "compatibility": True})
-    draw(states, active, selected, frame)
+                active.pop(key, None)
+
+    frame = 0
+    with ThreadPoolExecutor(max_workers=args.jobs) as pool:
+        futures = [pool.submit(worker, key) for key in selected]
+        if t1s_keys:
+            futures.append(pool.submit(shared_t1s_worker))
+        while not all(f.done() for f in futures):
+            with lock:
+                draw(states, active, selected, frame, plans)
+            frame += 1
+            time.sleep(0.2)
+        for future in futures:
+            future.result()
+    draw(states, active, selected, frame, plans)
     report = {"timestamp": dt.datetime.now(dt.timezone.utc).isoformat(),
               "kernel": KERNEL, "tasks": states}
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

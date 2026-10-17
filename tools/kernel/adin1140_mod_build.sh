@@ -8,7 +8,7 @@ KVER="$(uname -r)"
 KDIR="/lib/modules/$KVER/build"
 [[ -d "$KDIR" ]] || t1s_die "Kernel headers not found: $KDIR"
 
-if modinfo adin1140 >/dev/null 2>&1 && modinfo adin1140-phy >/dev/null 2>&1 && modinfo oa_tc6 >/dev/null 2>&1; then
+if [[ "${BEIIS_FORCE_BUILD:-0}" != "1" ]] && modinfo adin1140 >/dev/null 2>&1 && modinfo adin1140-phy >/dev/null 2>&1 && modinfo oa_tc6 >/dev/null 2>&1; then
     t1s_note "Running kernel already provides adin1140, adin1140-phy and oa_tc6."
     exit 0
 fi

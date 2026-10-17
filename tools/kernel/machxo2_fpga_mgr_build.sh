@@ -34,6 +34,11 @@ for module in fpga-mgr fpga-bridge fpga-region of-fpga-region machxo2-spi; do
   [ -f "$BUILD_DIR/$module.ko" ] || die "$module.ko was not created"
 done
 
+if [[ "${BEIIS_BUILD_ONLY:-0}" == "1" ]]; then
+    echo "Build-only mode: skipping module installation"
+    exit 0
+fi
+
 say STEP4 "Installing modules"
 for module in fpga-mgr fpga-bridge fpga-region of-fpga-region machxo2-spi; do
   sudo install -D -m 644 "$BUILD_DIR/$module.ko" "/lib/modules/$KVER/updates/$module.ko"
