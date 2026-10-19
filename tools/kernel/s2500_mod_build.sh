@@ -29,7 +29,30 @@ cp "$SRC/drivers/net/ethernet/onsemi/s2500/s2500_ptp.c" "$OUT/"
 cp "$SRC/drivers/net/ethernet/onsemi/s2500/s2500_hw_def.h" "$OUT/"
 cp "$SRC/drivers/net/phy/ncn26000.c" "$OUT/"
 # The PHY driver includes this header from the matching upstream baseline.
-t1s_fetch "https://raw.githubusercontent.com/torvalds/linux/$S2500_BASE_COMMIT/drivers/net/phy/mdio-open-alliance.h" "$OUT/mdio-open-alliance.h" || t1s_die "Cannot fetch pinned mdio-open-alliance.h"
+# Reuse the header from the exact pinned backport source snapshot.
+# Do not fetch an unrelated Linux revision just to make compilation pass.
+HEADER_REL="drivers/net/phy/mdio-open-alliance.h"
+HEADER_CACHE="$REPO_ROOT/build/t1s-source/pinned-base/$S2500_BASE_COMMIT/$HEADER_REL"
+if [[ -s "$SRC/$HEADER_REL" ]]; then
+    cp "$SRC/$HEADER_REL" "$OUT/mdio-open-alliance.h"
+elif [[ -s "$HEADER_CACHE" ]]; then
+    cp "$HEADER_CACHE" "$OUT/mdio-open-alliance.h"
+else
+    mkdir -p "$(dirname "$HEADER_CACHE")"
+    BASE_URL="https://kernel.googlesource.com/pub/scm/linux/kernel/git/netdev/net-next/+/$S2500_BASE_COMMIT/$HEADER_REL?format=TEXT"
+    if wget -q --timeout=20 --tries=3 -O "$HEADER_CACHE.b64" "$BASE_URL" &&
+       base64 -d "$HEADER_CACHE.b64" > "$HEADER_CACHE.tmp" &&
+       [[ -s "$HEADER_CACHE.tmp" ]]; then
+        mv "$HEADER_CACHE.tmp" "$HEADER_CACHE"
+    else
+        rm -f "$HEADER_CACHE.b64" "$HEADER_CACHE.tmp"
+        t1s_die "Pinned mdio-open-alliance.h unavailable at net-next commit $S2500_BASE_COMMIT. Refusing to mix versions."
+    fi
+    rm -f "$HEADER_CACHE.b64"
+    cp "$HEADER_CACHE" "$OUT/mdio-open-alliance.h"
+fi
+grep -Eq '(^#|struct |enum |MDIO|OATC)' "$OUT/mdio-open-alliance.h" ||
+    t1s_die "Invalid pinned mdio-open-alliance.h: missing expected C header content"
 
 # Kernel 6.12 already ships an older linux/oa_tc6.h. The new OA-TC6
 # source set MUST consistently include its matching local header.
