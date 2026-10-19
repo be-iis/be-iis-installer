@@ -58,6 +58,13 @@ for product_dir in "$PRODUCTS_DIR"/BE-IIS*; do
     for dtbo in "$overlay_build_dir"/*.dtbo; do
         [[ -e "$dtbo" ]] || continue
 
+        # Only install overlays backed by a CURRENT .dts. Renamed overlays
+        # may leave stale .dtbo outputs behind in build/rpi.
+        stem="$(basename "$dtbo" .dtbo)"
+        if [[ ! -f "$product_dir/overlays/src/rpi/$stem.dts" ]]; then
+            warn "Skipping stale overlay $(basename "$dtbo"): no matching source .dts"
+            continue
+        fi
         found_dtbo=1
 
         log "Copying $(basename "$dtbo")"
