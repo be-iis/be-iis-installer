@@ -230,6 +230,10 @@ def main():
     lock = threading.Lock()
     report_path = ROOT / args.report
     report_path.parent.mkdir(parents=True, exist_ok=True)
+    # Never retain compatibility claims from a previous build.
+    compatibility_report = ROOT / "build/t1s-unified/compatibility-report.txt"
+    if t1s_keys:
+        compatibility_report.unlink(missing_ok=True)
 
     def worker(key):
         for label, command in plans[key]:
@@ -313,10 +317,11 @@ def main():
         if report_proc.returncode:
             compatibility_report_error = report_proc.stdout + report_proc.stderr
     draw(states, active, active_output, selected, frame, plans, started, final=True)
-    compatibility_report = ROOT / "build/t1s-unified/compatibility-report.txt"
     report = {"timestamp": dt.datetime.now(dt.timezone.utc).isoformat(),
               "kernel": KERNEL, "tasks": states}
-    if compatibility_report.is_file():
+    all_builds_passed = all(task["status"] == "ok" for group in states.values() for task in group)
+    t1s_completed = not t1s_keys or all(states[key] and all(task["status"] == "ok" for task in states[key]) for key in [TC6_STACK, *t1s_keys])
+    if all_builds_passed and t1s_completed and not compatibility_report_error and compatibility_report.is_file():
         report["t1s_compatibility_report"] = {
             "path": str(compatibility_report),
             "content": compatibility_report.read_text(encoding="utf-8"),
@@ -327,6 +332,10 @@ def main():
     failed = sum(x["status"] == "failed" and not x.get("recovered") for group in states.values() for x in group)
     total_failed = failed + bool(compatibility_report_error)
     print(f"Report: {report_path} | Failed steps: {total_failed}")
+    green = sum(bool(states[key]) and all(step["status"] == "ok" for step in states[key]) for key in selected)
+    red = sum(any(step["status"] == "failed" for step in states[key]) for key in selected)
+    yellow = len(selected) - green - red
+    print(f"BUILD TRAFFIC LIGHT: GREEN={green} | YELLOW (skipped/not run)={yellow} | RED={red}")
     if compatibility_report_error:
         print("Compatibility report failed:\n" + compatibility_report_error, file=sys.stderr)
     if "t1s_compatibility_report" in report:
