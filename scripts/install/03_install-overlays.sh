@@ -44,6 +44,10 @@ products_seen=0
 for product_dir in "$PRODUCTS_DIR"/BE-IIS*; do
     [[ -d "$product_dir" ]] || continue
 
+    # Git can leave ignored build artifacts in a renamed, retired product directory.
+    # Never install overlays from the obsolete Onsemi product path.
+    [[ "$(basename "$product_dir")" == "BE-IIS-HPP-T1S-ONSEMI-REVA" ]] && continue
+
     overlay_build_dir="$product_dir/overlays/build/rpi"
 
     [[ -d "$overlay_build_dir" ]] || continue
