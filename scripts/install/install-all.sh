@@ -2,7 +2,7 @@
 # BE-IIS installer: stable, customer-facing entry point.
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STAGES=(
     01_install_eepdump.sh
@@ -16,7 +16,7 @@ SUCCESSFUL=0
 FAILED=0
 FAILED_STAGE=""
 GREEN='' RED='' YELLOW='' RESET=''
-if [[ -t 1 && -z "\${NO_COLOR:-}" ]]; then
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
     GREEN=$'\033[32m'; RED=$'\033[31m'
     YELLOW=$'\033[33m'; RESET=$'\033[0m'
 fi
@@ -26,7 +26,7 @@ fail() { printf '%s[ERROR] %s%s\n' "$RED" "$*" "$RESET" >&2; exit 1; }
 print_build_summary() {
     local report="$ROOT/build/install-report.json"
     [[ -f "$report" ]] || { printf '%s[WARN] No build report found%s\n' "$YELLOW" "$RESET"; return; }
-    python3 - "$report" "$([[ -t 1 && -z "\${NO_COLOR:-}" ]] && echo yes || echo no)" <<'PY'
+    python3 - "$report" "$([[ -t 1 && -z "${NO_COLOR:-}" ]] && echo yes || echo no)" <<'PY'
 import json
 import sys
 
@@ -57,12 +57,12 @@ PY
 print_final_summary() {
     printf '\n'
     log '--------------------------------------------------'
-    if (( FAILED == 0 && SUCCESSFUL == \${#STAGES[@]} )); then
+    if (( FAILED == 0 && SUCCESSFUL == ${#STAGES[@]} )); then
         printf '%s[INFO] Installation complete.%s\n' "$GREEN" "$RESET"
     else
         printf '%s[ERROR] Installation incomplete.%s\n' "$RED" "$RESET"
     fi
-    log "Total scripts : \${#STAGES[@]}"
+    log "Total scripts : ${#STAGES[@]}"
     log "Successful    : $SUCCESSFUL"
     log "Failed        : $FAILED"
     if [[ -n "$FAILED_STAGE" ]]; then
@@ -92,7 +92,7 @@ command -v python3 >/dev/null 2>&1 || fail 'Python 3 is missing'
 log 'Preparing kernel build environment'
 bash "$ROOT/scripts/bootstrap/prepare-rpi-build-env.sh"
 
-for name in "\${STAGES[@]}"; do
+for name in "${STAGES[@]}"; do
     log "Running $name"
     if bash "$SCRIPT_DIR/$name"; then
         SUCCESSFUL=$((SUCCESSFUL + 1))
