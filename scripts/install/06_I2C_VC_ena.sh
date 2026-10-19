@@ -8,6 +8,8 @@ else
     CONFIG_FILE="/boot/config.txt"
 fi
 
+REBOOT_REQUIRED=0
+
 echo "[SETUP] Checking I2C VC (i2c_vc)"
 
 # Check if parameter already exists
