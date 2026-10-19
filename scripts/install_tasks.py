@@ -62,6 +62,10 @@ def discover_tasks():
         if not product.is_dir() or not product.name.startswith("BE-IIS-"):
             continue
         key = product.name
+        # A directory left behind by a Git rename can contain ignored build
+        # artifacts even after git pull. Never rediscover the retired product.
+        if key == "BE-IIS-HPP-T1S-ONSEMI-REVA":
+            continue
         steps = []
         if key in DRIVER_BUILDS:
             name, modules = DRIVER_BUILDS[key]
