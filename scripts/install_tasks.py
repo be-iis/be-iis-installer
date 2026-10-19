@@ -20,7 +20,7 @@ KERNEL = os.uname().release
 DRIVER_BUILDS = {
     "BE-IIS-HPP-T1L-REVB": ("adin1110", ["adin1110"]),
 }
-T1S_PRODUCTS = {"BE-IIS-HPP-T1S-ADI-REVA": "adi", "BE-IIS-HPP-T1S-ONSEMI-REVA": "onsemi", "BE-IIS-HPP-T1S-REVB": "microchip"}
+T1S_PRODUCTS = {"BE-IIS-HPP-T1S-ADI-REVA": "adi", "BE-IIS-HPP-T1S-ON-REVA": "onsemi", "BE-IIS-HPP-T1S-REVB": "microchip"}
 TC6_STACK = "OA-TC6 shared driver stack"
 # A single independent worker owns each driver build directory.
 # Product tasks only build when outputs are missing, unless --rebuild is used.
@@ -49,7 +49,7 @@ def product_build_command(key, rebuild):
 
 ALIASES = {
     "adi": "BE-IIS-HPP-T1S-ADI-REVA",
-    "onsemi": "BE-IIS-HPP-T1S-ONSEMI-REVA",
+    "onsemi": "BE-IIS-HPP-T1S-ON-REVA",
     "microchip": "BE-IIS-HPP-T1S-REVB",
     "t1l": "BE-IIS-HPP-T1L-REVB",
     "uart": "BE-IIS-HPP-UART-REVB",
