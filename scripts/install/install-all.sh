@@ -1,66 +1,53 @@
 #!/usr/bin/env bash
+# Stable entry point for the BE-IIS installation on Raspberry Pi OS / Debian.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SELF="$(basename "$0")"
+ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-log() {
-    printf '[INFO] %s\n' "$*"
-}
+log() { printf '[INFO] %s\n' "$*"; }
+die() { printf '[ERROR] %s\n' "$*" >&2; exit 1; }
 
-warn() {
-    printf '[WARN] %s\n' "$*" >&2
-}
+command -v sudo >/dev/null 2>&1 || die "sudo is required"
+command -v apt-get >/dev/null 2>&1 || die "apt-get is required (Raspberry Pi OS / Debian)"
 
-count_total=0
-count_ok=0
-count_fail=0
+# Python is needed by the new parallel build orchestrator. Install all base
+# dependencies BEFORE attempting to start Python or any compilation.
+log "STEP 1/3: Installing system packages"
+sudo apt-get update
+sudo apt-get install -y \
+    python3 \
+    git cmake make gcc build-essential \
+    device-tree-compiler libncurses-dev libfdt-dev libgnutls28-dev \
+    pkg-config wget curl bc kmod automake autoconf libtool \
+    i2c-tools
+command -v python3 >/dev/null 2>&1 || die "python3 is unavailable after package installation"
 
-shopt -s nullglob
+log "STEP 2/3: Preparing kernel build environment"
+"$ROOT/scripts/bootstrap/prepare-rpi-build-env.sh"
 
-for script in "$SCRIPT_DIR"/*.sh; do
-    name="$(basename "$script")"
-
-    # Skip itself
-    if [[ "$name" == "$SELF" ]]; then
-        continue
-    fi
-
-    ((count_total+=1))
-
+log "STEP 3/3: Running BE-IIS installation"
+# Run explicit stages in order. Never enumerate every .sh script: that would
+# run old standalone driver builders instead of the Python orchestrator.
+for name in \
+    01_install_eepdump.sh \
+    02_install-mods.sh \
+    03_install-overlays.sh \
+    04_install_hatpp_service.sh \
+    05_install-udev-rules.sh \
+    06_I2C_VC_ena.sh; do
     log "Running $name"
-
-    chmod +x "$script"
-
-    if "$script"; then
-        log "OK: $name"
-        ((count_ok+=1))
-    else
-        warn "FAILED: $name"
-        ((count_fail+=1))
+    if ! bash "$SCRIPT_DIR/$name"; then
+        die "Installation failed in $name (stopped; no reboot)"
     fi
 done
 
-log "Done"
-log "Total scripts : $count_total"
-log "Successful    : $count_ok"
-log "Failed        : $count_fail"
-
-if [[ $count_fail -ne 0 ]]; then
-    exit 1
+log "Installation steps completed successfully."
+log "Build report: $ROOT/build/install-report.json"
+log "Changes to boot configuration / services may require a reboot."
+if [[ -t 0 ]]; then
+    read -r -p "Press ENTER to reboot now, or CTRL+C to cancel..."
+    sudo reboot
+else
+    log "Non-interactive run: skipping automatic reboot."
 fi
-
-echo
-log "--------------------------------------------------"
-log "Installation complete."
-log "The following changes will become active after reboot:"
-log "  - systemd service"
-log "  - udev rules"
-log "  - module autoload / runtime setup"
-log "--------------------------------------------------"
-echo
-
-read -rp "Press ENTER to reboot now or CTRL+C to cancel..."
-
-log "Rebooting..."
-sudo reboot
