@@ -330,16 +330,24 @@ t1s_prepare_source() {
     [[ -n "$tree" && -d "$tree" ]] || { t1s_warn "No valid source directory for $target"; return 1; }
     local supplement=""
     if ! t1s_has_target "$tree" "$target"; then
-        # Missing MAC-PHY drivers are sourced from the requested Linux 7.2
-        # baseline. Never fetch moving 'master' into a pinned OA-TC6 stack.
+        # ADIN1140 was merged after Linux v7.2. Pin the exact upstream
+        # revision rather than requesting files that do not exist in v7.2.
+        # Only fetch the two driver files: the shared OA-TC6 provider stays
+        # pinned to the separately prepared S2500 v8 patch series.
+        local adin_ref="4df4d2a577db2d3d57b888bcfb1206fc74661d16"
         local raw="https://raw.githubusercontent.com/torvalds/linux/v7.2" path
+        if [[ "$target" == "adin1140" ]]; then
+            raw="https://raw.githubusercontent.com/torvalds/linux/$adin_ref"
+            supplement=" + ADIN1140 driver files from Linux commit $adin_ref"
+        else
+            supplement=" + Linux v7.2 driver files"
+        fi
         while IFS= read -r path; do
             [[ -n "$path" ]] || continue
             [[ -f "$tree/$path" ]] && continue
             t1s_fetch "$raw/$path" "$tree/$path" ||
-                t1s_die "Required upstream source not found: $path"
+                t1s_die "Required upstream source not found: $path ($raw)"
         done < <(t1s_target_files "$target")
-        supplement=" + Linux v7.2 driver files"
     fi
 
     t1s_has_target "$tree" "$target" || { t1s_warn "Required $target source set is incomplete"; return 1; }
