@@ -85,7 +85,7 @@ command -v apt-get >/dev/null 2>&1 || fail "apt-get is required (Debian / Raspbe
 log 'Installing system packages (including Python 3)'
 sudo apt-get update
 sudo apt-get install -y \
-    python3 git cmake make gcc build-essential \
+    python3 b4 git cmake make gcc build-essential \
     device-tree-compiler libncurses-dev libfdt-dev libgnutls28-dev \
     pkg-config wget curl bc kmod automake autoconf libtool i2c-tools
 command -v python3 >/dev/null 2>&1 || fail 'Python 3 is missing'
