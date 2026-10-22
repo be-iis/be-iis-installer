@@ -1,0 +1,67 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// BE-IIS-HPP-ADC, HAT++ instance III
+// SPI0 CE2: BCM GPIO16; IRQ/BUSY: BCM GPIO12
+// ADC development access via spidev; shared CONVERT = BCM GPIO23.
+// Requires SPI0 enabled. GPIO numbers are BCM, not physical header pin numbers.
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+    compatible = "brcm,bcm2835", "brcm,bcm2711", "brcm,bcm2712";
+
+    fragment@0 {
+        target = <&spi0>;
+        __overlay__ {
+            #address-cells = <1>;
+            #size-cells = <0>;
+            status = "okay";
+            num-cs = <3>;
+            cs-gpios = <&gpio 8 GPIO_ACTIVE_LOW>,
+                       <&gpio 7 GPIO_ACTIVE_LOW>,
+                       <&gpio 16 GPIO_ACTIVE_LOW>;
+
+            adc@2 {
+                compatible = "rohm,dh2228fv";
+                reg = <2>;
+                spi-max-frequency = <1000000>;
+                pinctrl-names = "default";
+                pinctrl-0 = <&beiis_adc_iii_irq>;
+                interrupt-parent = <&gpio>;
+                interrupts = <12 IRQ_TYPE_EDGE_RISING>;
+                /* Temporary spidev binding; replace with the real ADC compatible
+                 * and driver once implemented. Do not use "spidev" as compatible.
+                 * This legacy spidev alias is strictly a development workaround.
+                 */
+                /* BUSY is wired to the instance-specific interrupt pin. */
+                /* CONVERT is common to all ADC HATs: BCM GPIO23 (header pin 16).
+                 * It is intentionally NOT GPIO-hogged: userspace or a future
+                 * driver must control it once globally, not once per instance.
+                 */
+                convert-gpios = <&gpio 23 0>;
+                status = "okay";
+            };
+        };
+    };
+
+    fragment@2 {
+        target = <&gpio>;
+        __overlay__ {
+            beiis_adc_iii_irq: beiis-adc-iii-irq {
+                brcm,pins = <12>;
+                brcm,function = <0>; /* input */
+                brcm,pull = <2>; /* pull-up */
+            };
+            /* Pinmux only. No GPIO hog and no output level set here.
+             * Userspace must request this shared GPIO exactly once.
+             */
+            beiis_adc_convert_iii: beiis-adc-convert-iii {
+                brcm,pins = <23>;
+                brcm,function = <0>;
+                brcm,pull = <0>;
+            };
+        };
+    };
+};

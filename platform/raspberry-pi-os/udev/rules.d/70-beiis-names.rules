@@ -7,6 +7,17 @@ SUBSYSTEM=="net", ACTION=="add", DRIVERS=="lan8650", KERNELS=="spi0.0", NAME="be
 SUBSYSTEM=="net", ACTION=="add", DRIVERS=="lan8650", KERNELS=="spi0.1", NAME="beiis-t1s1"
 SUBSYSTEM=="net", ACTION=="add", DRIVERS=="lan8650", KERNELS=="spi0.2", NAME="beiis-t1s2"
 
+# --- 10BASE-T1S (onsemi S2500) ---
+# Index 0/1/2 maps to HAT++ positions I/II/III (SPI0.0/0.1/0.2).
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="s2500", KERNELS=="spi0.0", NAME="beiis-t1s-on0"
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="s2500", KERNELS=="spi0.1", NAME="beiis-t1s-on1"
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="s2500", KERNELS=="spi0.2", NAME="beiis-t1s-on2"
+
+# --- 10BASE-T1S (ADI ADIN1140) ---
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="adin1140", KERNELS=="spi0.0", NAME="beiis-t1s-adi0"
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="adin1140", KERNELS=="spi0.1", NAME="beiis-t1s-adi1"
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="adin1140", KERNELS=="spi0.2", NAME="beiis-t1s-adi2"
+
 # --- Ethernet (KSZ8851) ---
 SUBSYSTEM=="net", ACTION=="add", DRIVERS=="ks8851", KERNELS=="spi0.0", NAME="beiis-lan0"
 SUBSYSTEM=="net", ACTION=="add", DRIVERS=="ks8851", KERNELS=="spi0.1", NAME="beiis-lan1"

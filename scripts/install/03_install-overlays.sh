@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="${1:-$HOME/be-iis-installer}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${1:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 PRODUCTS_DIR="$REPO_ROOT/products"
 
 log() {
@@ -43,6 +44,10 @@ products_seen=0
 for product_dir in "$PRODUCTS_DIR"/BE-IIS*; do
     [[ -d "$product_dir" ]] || continue
 
+    # Git can leave ignored build artifacts in a renamed, retired product directory.
+    # Never install overlays from the obsolete Onsemi product path.
+    [[ "$(basename "$product_dir")" == "BE-IIS-HPP-T1S-ONSEMI-REVA" ]] && continue
+
     overlay_build_dir="$product_dir/overlays/build/rpi"
 
     [[ -d "$overlay_build_dir" ]] || continue
@@ -57,6 +62,13 @@ for product_dir in "$PRODUCTS_DIR"/BE-IIS*; do
     for dtbo in "$overlay_build_dir"/*.dtbo; do
         [[ -e "$dtbo" ]] || continue
 
+        # Only install overlays backed by a CURRENT .dts. Renamed overlays
+        # may leave stale .dtbo outputs behind in build/rpi.
+        stem="$(basename "$dtbo" .dtbo)"
+        if [[ ! -f "$product_dir/overlays/src/rpi/$stem.dts" ]]; then
+            warn "Skipping stale overlay $(basename "$dtbo"): no matching source .dts"
+            continue
+        fi
         found_dtbo=1
 
         log "Copying $(basename "$dtbo")"

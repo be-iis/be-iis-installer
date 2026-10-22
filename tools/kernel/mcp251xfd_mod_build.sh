@@ -60,7 +60,7 @@ mkdir -p "$BUILD_DIR"
 STEP="STEP3"
 say "$STEP" "Downloading sources"
 
-BASE_URL="https://raw.githubusercontent.com/raspberrypi/linux/rpi-6.12.y/drivers/net/can/spi/mcp251xfd"
+BASE_URL="https://raw.githubusercontent.com/raspberrypi/linux/rpi-${KVER%%.*}.$(echo "$KVER" | cut -d. -f2).y/drivers/net/can/spi/mcp251xfd"
 
 for f in \
     mcp251xfd-core.c \
@@ -115,6 +115,11 @@ say "$STEP" "Building module"
 make -C "$KDIR" M="$BUILD_DIR" modules
 
 [ -f "$BUILD_DIR/mcp251xfd.ko" ] || die "mcp251xfd.ko was not created"
+
+if [[ "${BEIIS_BUILD_ONLY:-0}" == "1" ]]; then
+    echo "Build-only mode: skipping module installation"
+    exit 0
+fi
 
 STEP="STEP6"
 say "$STEP" "Installing module"

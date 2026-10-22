@@ -8,21 +8,22 @@ KVER="$(uname -r)"
 KDIR="/lib/modules/$KVER/build"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BUILD_DIR="$REPO_ROOT/build/machxo2-fpga-manager"
-BASE_URL="https://raw.githubusercontent.com/torvalds/linux/v6.12/drivers/fpga"
+KBRANCH="rpi-$(uname -r | cut -d. -f1-2).y"
+BASE_URL="https://raw.githubusercontent.com/raspberrypi/linux/$KBRANCH/drivers/fpga"
 
 [ -d "$KDIR" ] || die "Kernel build directory not found: $KDIR"
 say STEP1 "Preparing $BUILD_DIR"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 
-say STEP2 "Downloading Linux v6.12 FPGA framework sources"
+say STEP2 "Downloading matching Raspberry Pi $KBRANCH FPGA sources"
 mkdir -p "$BUILD_DIR/include/linux/fpga"
 for source in fpga-mgr fpga-bridge fpga-region of-fpga-region machxo2-spi; do
-  wget -q -O "$BUILD_DIR/$source.c" "$BASE_URL/$source.c"
+  wget -nv -O "$BUILD_DIR/$source.c" "$BASE_URL/$source.c" || die "Source unavailable in $KBRANCH: $source.c"
 done
 for header in fpga-mgr fpga-bridge fpga-region; do
   wget -q -O "$BUILD_DIR/include/linux/fpga/$header.h" \
-    "https://raw.githubusercontent.com/torvalds/linux/v6.12/include/linux/fpga/$header.h"
+    "https://raw.githubusercontent.com/raspberrypi/linux/$KBRANCH/include/linux/fpga/$header.h" || die "Header unavailable in $KBRANCH: $header.h"
 done
 
 printf 'ccflags-y := -I$(src)/include\nobj-m := fpga-mgr.o fpga-bridge.o fpga-region.o of-fpga-region.o machxo2-spi.o\n' > "$BUILD_DIR/Makefile"
@@ -33,6 +34,11 @@ make -C "$KDIR" M="$BUILD_DIR" modules
 for module in fpga-mgr fpga-bridge fpga-region of-fpga-region machxo2-spi; do
   [ -f "$BUILD_DIR/$module.ko" ] || die "$module.ko was not created"
 done
+
+if [[ "${BEIIS_BUILD_ONLY:-0}" == "1" ]]; then
+    echo "Build-only mode: skipping module installation"
+    exit 0
+fi
 
 say STEP4 "Installing modules"
 for module in fpga-mgr fpga-bridge fpga-region of-fpga-region machxo2-spi; do

@@ -61,7 +61,7 @@ mkdir -p "$BUILD_DIR"
 STEP="STEP3"
 say "$STEP" "Downloading sources"
 
-BASE_URL="https://raw.githubusercontent.com/raspberrypi/linux/rpi-6.12.y/drivers/tty/serial"
+BASE_URL="https://raw.githubusercontent.com/raspberrypi/linux/rpi-${KVER%%.*}.$(echo "$KVER" | cut -d. -f2).y/drivers/tty/serial"
 
 wget -q -O "$BUILD_DIR/sc16is7xx.c"     "$BASE_URL/sc16is7xx.c"
 wget -q -O "$BUILD_DIR/sc16is7xx_spi.c" "$BASE_URL/sc16is7xx_spi.c"
@@ -87,6 +87,11 @@ make -C "$KDIR" M="$BUILD_DIR" modules
 
 [ -f "$BUILD_DIR/sc16is7xx.ko" ] || die "sc16is7xx.ko was not created"
 [ -f "$BUILD_DIR/sc16is7xx_spi.ko" ] || die "sc16is7xx_spi.ko was not created"
+
+if [[ "${BEIIS_BUILD_ONLY:-0}" == "1" ]]; then
+    echo "Build-only mode: skipping module installation"
+    exit 0
+fi
 
 STEP="STEP6"
 say "$STEP" "Installing modules"

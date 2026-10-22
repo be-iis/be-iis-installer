@@ -60,7 +60,7 @@ mkdir -p "$BUILD_DIR"
 STEP="STEP3"
 say "$STEP" "Downloading sources"
 
-BASE_URL="https://raw.githubusercontent.com/raspberrypi/linux/rpi-6.12.y/drivers/net/ethernet/micrel"
+BASE_URL="https://raw.githubusercontent.com/raspberrypi/linux/rpi-${KVER%%.*}.$(echo "$KVER" | cut -d. -f2).y/drivers/net/ethernet/micrel"
 
 wget -q -O "$BUILD_DIR/ks8851_spi.c"    "$BASE_URL/ks8851_spi.c"
 wget -q -O "$BUILD_DIR/ks8851_common.c" "$BASE_URL/ks8851_common.c"
@@ -86,6 +86,11 @@ say "$STEP" "Building module"
 make -C "$KDIR" M="$BUILD_DIR" modules
 
 [ -f "$BUILD_DIR/ks8851.ko" ] || die "ks8851.ko was not created"
+
+if [[ "${BEIIS_BUILD_ONLY:-0}" == "1" ]]; then
+    echo "Build-only mode: skipping module installation"
+    exit 0
+fi
 
 STEP="STEP6"
 say "$STEP" "Installing module"

@@ -1,103 +1,38 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-
-die() {
-    echo "Error: $1" >&2
-    exit 1
-}
-
-say() {
-    step="$1"
-    msg="$2"
-    printf "%s: %s\n" "$step" "$msg"
-}
-
-require_command() {
-    cmd="$1"
-    command -v "$cmd" >/dev/null 2>&1 || die "Required command not found: $cmd"
-}
-
-STEP="STEP1"
-say "$STEP" "Checking required tools"
-
-require_command uname
-require_command wget
-require_command make
-require_command gcc
-require_command sudo
+source "$SCRIPT_DIR/t1s_source_common.sh"
 
 KVER="$(uname -r)"
 KDIR="/lib/modules/$KVER/build"
+[[ -d "$KDIR" ]] || t1s_die "Kernel headers not found: $KDIR"
 
-say "$STEP" "Running kernel: $KVER"
-say "$STEP" "Kernel build directory: $KDIR"
+if modinfo lan865x >/dev/null 2>&1 && modinfo microchip_t1s >/dev/null 2>&1 && modinfo oa_tc6 >/dev/null 2>&1; then
+    t1s_note "Running kernel already provides lan865x, microchip_t1s and oa_tc6."
+    exit 0
+fi
 
-[ -d "$KDIR" ] || die "Kernel build directory not found: $KDIR"
-[ -f "$KDIR/include/generated/autoconf.h" ] || die "Missing autoconf.h in $KDIR"
-[ -f "$KDIR/Makefile" ] || die "Missing kernel Makefile in $KDIR"
+t1s_warn "LAN865x/OA-TC6 missing; using at least the S2500-required OA-TC6 feature baseline."
+SRC="$(t1s_prepare_source "$REPO_ROOT" lan865x "$KVER")"
+OUT="$REPO_ROOT/build/lan865x"
+rm -rf "$OUT"; mkdir -p "$OUT/include/linux"
 
-STEP="STEP2"
-say "$STEP" "Preparing build directory"
+cp "$SRC/drivers/net/ethernet/microchip/lan865x/lan865x.c" "$OUT/"
+cp "$SRC/drivers/net/phy/microchip_t1s.c" "$OUT/"
+cp "$SRC/include/linux/oa_tc6.h" "$OUT/include/linux/"
+cp "$SRC/drivers/net/ethernet/oa_tc6/oa_tc6.c" "$OUT/oa_tc6_core.c"
+cp "$SRC/drivers/net/ethernet/oa_tc6/oa_tc6_ptp.c" "$OUT/" 2>/dev/null || true
+cp "$SRC/drivers/net/ethernet/oa_tc6/oa_tc6_tstamp.c" "$OUT/" 2>/dev/null || true
+cp "$SRC/drivers/net/ethernet/oa_tc6/oa_tc6_std_def.h" "$OUT/" 2>/dev/null || true
 
-BUILD_DIR="${REPO_ROOT}/build/lan865x"
-INCLUDE_DIR="$BUILD_DIR/include/linux"
-
-rm -rf "$BUILD_DIR"
-mkdir -p "$INCLUDE_DIR"
-
-STEP="STEP3"
-say "$STEP" "Downloading sources"
-
-wget -q -O "$BUILD_DIR/lan865x.c" \
-"https://raw.githubusercontent.com/raspberrypi/linux/refs/heads/rpi-6.13.y/drivers/net/ethernet/microchip/lan865x/lan865x.c"
-
-wget -q -O "$BUILD_DIR/oa_tc6.c" \
-"https://raw.githubusercontent.com/raspberrypi/linux/refs/heads/rpi-6.13.y/drivers/net/ethernet/oa_tc6.c"
-
-wget -q -O "$INCLUDE_DIR/oa_tc6.h" \
-"https://raw.githubusercontent.com/raspberrypi/linux/refs/heads/rpi-6.13.y/include/linux/oa_tc6.h"
-
-wget -q -O $BUILD_DIR/microchip_t1s.c \
-https://raw.githubusercontent.com/raspberrypi/linux/refs/heads/rpi-6.13.y/drivers/net/phy/microchip_t1s.c
-
-STEP="STEP4"
-say "$STEP" "Creating Makefile"
-
-cat > "$BUILD_DIR/Makefile" <<'EOF'
+cat > "$OUT/Makefile" <<'EOF'
 obj-m := oa_tc6.o lan865x.o microchip_t1s.o
-
-ccflags-y += -I$(PWD)/include
-
-all:
-	$(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
-
-clean:
-	$(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+oa_tc6-y := oa_tc6_core.o
+oa_tc6-y += $(if $(wildcard $(M)/oa_tc6_ptp.c),oa_tc6_ptp.o)
+oa_tc6-y += $(if $(wildcard $(M)/oa_tc6_tstamp.c),oa_tc6_tstamp.o)
+ccflags-y += -I$(M)/include
 EOF
 
-STEP="STEP5"
-say "$STEP" "Building modules"
-
-make -C "$KDIR" M="$BUILD_DIR" modules
-
-[ -f "$BUILD_DIR/oa_tc6.ko" ] || die "oa_tc6.ko was not created"
-[ -f "$BUILD_DIR/lan865x.ko" ] || die "lan865x.ko was not created"
-
-STEP="STEP6"
-say "$STEP" "Installing modules"
-
-sudo install -D -m 644 "$BUILD_DIR/oa_tc6.ko" "/lib/modules/$KVER/updates/oa_tc6.ko"
-sudo install -D -m 644 "$BUILD_DIR/lan865x.ko" "/lib/modules/$KVER/updates/lan865x.ko"
-sudo install -D -m 644 "$BUILD_DIR/microchip_t1s.ko" "/lib/modules/$KVER/updates/microchip_t1s.ko"
-
-sudo depmod "$KVER"
-
-STEP="STEP7"
-say "$STEP" "Done"
-say "$STEP" "Try loading with:"
-say "$STEP" "sudo modprobe oa_tc6"
-say "$STEP" "sudo modprobe lan865x"
-say "$STEP" "sudo modprobe microchip_t1s"
+make -C "$KDIR" M="$OUT" modules || t1s_die "Build failed; update the Raspberry Pi kernel rather than mixing an older OA-TC6 API."
+t1s_note "Built modules in $OUT"

@@ -111,6 +111,11 @@ make -C "$KDIR" M="$BUILD_DIR" modules
 
 [ -f "$BUILD_DIR/adin1110.ko" ] || die "adin1110.ko was not created"
 
+if [[ "${BEIIS_BUILD_ONLY:-0}" == "1" ]]; then
+    say "STEP6" "Build-only mode: skipping module installation and depmod"
+    exit 0
+fi
+
 STEP="STEP6"
 say "$STEP" "Installing module"
 
