@@ -7,6 +7,7 @@ ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STAGES=(
     01_install_eepdump.sh
     02_install-mods.sh
+    02b_install-t1s-stack.sh
     03_install-overlays.sh
     04_install_hatpp_service.sh
     05_install-udev-rules.sh
